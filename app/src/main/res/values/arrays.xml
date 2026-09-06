@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string-array name="xposed_scope">
+        <!-- Telegram Ecosystem -->
+        <item>org.telegram.messenger</item>
+        <item>org.telegram.messenger.beta</item>
+        <item>org.telegram.messenger.web</item>
+        <item>org.telegram.plus</item>
+        <item>tw.nekomimi.nekogram</item>
+        <item>org.nekogram</item>
+        <item>nekox.messenger</item>
+        <item>xyz.nextalone.nagram</item>
+        <item>nu.gpu.nagram</item>
+        <item>nu.gpu.nagramx</item>
+        <item>uz.unnarsx.cherrygram</item>
+        <item>org.forkgram.messenger</item>
+        <item>org.forkclient.messenger</item>
+        <item>org.telegram.group</item>
+        <item>it.octogram.android</item>
+        <item>it.belloworld.mercurygram</item>
+        <item>top.qwq2333.nullgram</item>
+        <item>com.iMe.android</item>
+        <item>com.exteragram.messenger</item>
+        <item>telega.messenger</item>
+        <item>com.yukigram</item>
+
+        <!-- TikTok -->
+        <item>com.zhiliaoapp.musically</item>
+        <item>com.ss.android.ugc.trill</item>
+
+        <!-- WhatsApp -->
+        <item>com.whatsapp</item>
+        <item>com.whatsapp.w4b</item>
+
+        <!-- YouTube -->
+        <item>com.google.android.youtube</item>
+        <item>com.google.android.apps.youtube.music</item>
+
+        <!-- Instagram -->
+        <item>com.instagram.android</item>
+
+        <!-- Twitter/X -->
+        <item>com.twitter.android</item>
+
+        <!-- Reddit -->
+        <item>com.reddit.frontpage</item>
+    </string-array>
+</resources>
