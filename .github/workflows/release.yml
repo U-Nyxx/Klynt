@@ -64,7 +64,7 @@ jobs:
 
             ### Requirements
             - Android 11+ (API 30)
-            - LSPosed, legacy Xposed (API 54+), or LSPatch
+            - LSPosed or legacy Xposed (API 54+)
 
             ### Installation
             1. Download `klynt-${{ github.ref_name }}-ArJk.apk`

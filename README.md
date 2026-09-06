@@ -25,7 +25,7 @@
 - **SOC-Aware** — Detects Snapdragon/Dimensity/Exynos/Tensor at runtime
 - **Per-App Toggle** — Enable/disable glass effect individually
 - **Thermal Scaling** — Exynos devices auto-reduce intensity under load
-- **All Rounder** — Works on LSPosed, legacy Xposed, and LSPatch
+- **All Rounder** — Works on LSPosed and legacy Xposed (API 54+)
 
 ## Supported Apps
 
@@ -44,7 +44,7 @@
 ## Requirements
 
 - Android 11+ (API 30)
-- One of: LSPosed, legacy Xposed Framework (API 54+), or LSPatch
+- One of: LSPosed or legacy Xposed Framework (API 54+)
 
 ## Installation
 
@@ -64,13 +64,6 @@
 4. Enable **KLYNT**
 5. Reboot device
 6. Force stop target app → reopen → glass nav appears
-
-### Non-Root — LSPatch
-
-1. Download `klynt-v1.0.0-ArJk.apk` from [Releases](https://github.com/U-Nyxx/Klynt/releases/latest)
-2. Patch target app with **LSPatch** (Inject loader dex)
-3. Install patched APK
-4. Open KLYNT → configure toggles
 
 ## Build
 
