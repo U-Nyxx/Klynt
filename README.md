@@ -2,7 +2,7 @@
   <img src="https://img.shields.io/github/v/release/U-Nyxx/Klynt?style=flat&color=6C63FF" alt="Release">
   <img src="https://img.shields.io/github/downloads/U-Nyxx/Klynt/total?style=flat&color=6C63FF" alt="Downloads">
   <img src="https://img.shields.io/badge/API-30%2B-00D4AA?style=flat" alt="API">
-  <img src="https://img.shields.io/badge/LSPosed-102-FF6B35?style=flat" alt="LSPosed">
+  <img src="https://img.shields.io/badge/Xposed-54%2B-FF6B35?style=flat" alt="Xposed">
   <img src="https://img.shields.io/github/license/U-Nyxx/Klynt?style=flat&color=6C63FF" alt="License">
 </p>
 
@@ -10,18 +10,12 @@
 
 <p align="center">
   <b>Liquid Glass Floating UI for Android</b><br>
-  <sub>Xposed/LSPosed module — iOS-inspired glass effect on 30+ apps</sub>
+  <sub>Xposed module — iOS-inspired glass effect on 30+ apps</sub>
 </p>
 
 ---
 
 > KLYNT hooks into target apps and replaces their standard bottom navigation bar with a **floating, translucent Liquid Glass pill**. No privacy hooks. No feature modifications. Just UI.
-
-## Screenshots
-
-| Main | Apps | Glass Effect |
-|:---:|:---:|:---:|
-| ![Main](screenshots/shot1.png) | ![Apps](screenshots/shot2.png) | ![Glass](screenshots/shot3.png) |
 
 ## Features
 
@@ -31,6 +25,7 @@
 - **SOC-Aware** — Detects Snapdragon/Dimensity/Exynos/Tensor at runtime
 - **Per-App Toggle** — Enable/disable glass effect individually
 - **Thermal Scaling** — Exynos devices auto-reduce intensity under load
+- **All Rounder** — Works on LSPosed, legacy Xposed, and LSPatch
 
 ## Supported Apps
 
@@ -49,21 +44,30 @@
 ## Requirements
 
 - Android 11+ (API 30)
-- LSPosed (root) or LSPatch (non-root)
+- One of: LSPosed, legacy Xposed Framework (API 54+), or LSPatch
 
 ## Installation
 
 ### Root — LSPosed
 
-1. Download `klynt-v1.0.ArJk.apk` from [Releases](https://github.com/U-Nyxx/Klynt/releases/latest)
+1. Download `klynt-v1.0.0-ArJk.apk` from [Releases](https://github.com/U-Nyxx/Klynt/releases/latest)
 2. Install the APK
 3. Open **LSPosed Manager** → **Modules**
 4. Enable **KLYNT** → select target apps
 5. Force stop target app → reopen → glass nav appears
 
+### Root — Legacy Xposed
+
+1. Download `klynt-v1.0.0-ArJk.apk` from [Releases](https://github.com/U-Nyxx/Klynt/releases/latest)
+2. Install the APK
+3. Open **Xposed Installer** → **Modules**
+4. Enable **KLYNT**
+5. Reboot device
+6. Force stop target app → reopen → glass nav appears
+
 ### Non-Root — LSPatch
 
-1. Download `klynt-v1.0.ArJk.apk` from [Releases](https://github.com/U-Nyxx/Klynt/releases/latest)
+1. Download `klynt-v1.0.0-ArJk.apk` from [Releases](https://github.com/U-Nyxx/Klynt/releases/latest)
 2. Patch target app with **LSPatch** (Inject loader dex)
 3. Install patched APK
 4. Open KLYNT → configure toggles
@@ -81,15 +85,15 @@ Requires: JDK 17, Android SDK 35, Kotlin 2.0, Compose BOM 2024.02
 ## FAQ
 
 <details>
-<summary><b>Module not showing in LSPosed?</b></summary>
+<summary><b>Module not showing in Xposed/LSPosed?</b></summary>
 
-Ensure LSPosed API 102+. Force stop LSPosed Manager and reopen.
+Ensure Xposed API 54+. Force stop the manager and reopen.
 </details>
 
 <details>
 <summary><b>Glass effect not appearing?</b></summary>
 
-Force stop target app and reopen. Check LSPosed scope includes the target app.
+Force stop target app and reopen. Check module scope includes the target app.
 </details>
 
 <details>
@@ -107,7 +111,7 @@ KLYNT falls back to software rendering on unsupported SoCs. Performance may vary
 ## Credits
 
 - [QWEA0/Liquid-Glass-Android](https://github.com/QWEA0/Liquid-Glass-Android) — Glass blur engine
-- [LSPosed](https://github.com/LSPosed/LSPosed) — Module framework
+- [Xposed Framework](https://github.com/rovo89/XposedBridge) — Module framework
 - [Material Design 3](https://m3.material.io/) — UI components
 
 ## License

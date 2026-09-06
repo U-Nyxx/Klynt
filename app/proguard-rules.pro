@@ -13,10 +13,6 @@
 -keep class com.unyxx.act.KlyntApplication { *; }
 
 -keep class de.robv.android.xposed.** { *; }
--keep class org.lsposed.lsposed.** { *; }
--keep class * extends org.lsposed.lsposed.XposedModule {
-    *;
-}
 
 -keepclasseswithmembernames class * {
     native <methods>;
@@ -41,7 +37,6 @@
 -dontwarn android.graphics.RuntimeColorFilter
 -dontwarn android.graphics.RuntimeXfermode
 -dontwarn de.robv.android.xposed.**
--dontwarn org.lsposed.lsposed.**
 -dontwarn android.support.**
 -dontwarn androidx.**
 -dontwarn kotlinx.coroutines.**

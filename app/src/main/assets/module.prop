@@ -1,9 +1,7 @@
 name=KLYNT
-version=1.0.ArJk
+version=1.0.0
 versionCode=1
 author=U-Nyxx
 description=Liquid Glass Floating Bottom Nav for Android — iOS 26 style glass morphism for Telegram, WhatsApp, YouTube, Instagram, Twitter, TikTok, Reddit
-minApiVersion=101
-targetApiVersion=102
-staticScope=false
-autoHotReload=true
+minApiVersion=54
+targetApiVersion=82
