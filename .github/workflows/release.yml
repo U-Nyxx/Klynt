@@ -1,0 +1,72 @@
+name: Build KLYNT
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v5
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      - name: Decode Keystore
+        run: echo "${{ secrets.APP_SIGN_KEY }}" | base64 -d > app/klynt-release.jks
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Build Release APK
+        run: ./gradlew assembleRelease
+        env:
+          STORE_PASSWORD: ${{ secrets.APP_SIGN_PWD }}
+          KEY_ALIAS: ${{ secrets.APP_SIGN_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.APP_SIGN_PWD }}
+
+      - name: Rename APK
+        run: |
+          cd app/build/outputs/apk/release/
+          VERSION=${GITHUB_REF_NAME#v}
+          mv app-release.apk klynt-${VERSION}-ArJk.apk
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Klynt-${{ github.ref_name }}
+          path: app/build/outputs/apk/release/klynt-*.apk
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: app/build/outputs/apk/release/klynt-*.apk
+          generate_release_notes: true
+          body: |
+            ## KLYNT ${{ github.ref_name }}
+
+            ### Liquid Glass Floating Bottom Nav
+            - Telegram ecosystem (20+ variants)
+            - WhatsApp + Business
+            - YouTube + YT Music
+            - Instagram
+            - Twitter/X
+            - TikTok
+            - Reddit
+
+            ### Requirements
+            - Android 11+ (API 30)
+            - LSPosed (root) or LSPatch (non-root)
+
+            ### Installation
+            1. Download `klynt-${{ github.ref_name }}-ArJk.apk`
+            2. Install & enable in LSPosed Manager
+            3. Select target apps & force stop
