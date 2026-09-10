@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Stable tag keys for KLYNT injection markers (never collide with target app R.id) -->
+    <item name="klynt_tag_injected" type="id" />
+    <item name="klynt_tag_wrapper" type="id" />
+</resources>

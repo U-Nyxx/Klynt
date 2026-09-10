@@ -1,0 +1,77 @@
+package com.unyxx.act.manager.viewmodel
+
+import android.content.Context
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.unyxx.act.manager.di.ServiceLocator
+import com.unyxx.act.util.Logger
+import com.unyxx.act.xposed.prefs.PrefsSchema
+import com.unyxx.act.xposed.scope.AppFamily
+import com.unyxx.act.xposed.scope.ScopeManager
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+
+class AppsViewModel(
+    private val context: Context
+) : ViewModel() {
+
+    private val scopeManager: ScopeManager = ServiceLocator.scopeManager()
+
+    private val _uiState = MutableStateFlow(AppsUiState())
+    val uiState: StateFlow<AppsUiState> = _uiState.asStateFlow()
+
+    init {
+        loadApps()
+    }
+
+    private fun loadApps() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val appsMap = scopeManager.getInstallableTargetApps()
+            val appsList = appsMap.entries.map { entry ->
+                val pkg = entry.key
+                val info = entry.value
+                val icon = ServiceLocator.loadAppIcon(pkg)
+                val liquidGlassEnabled = ServiceLocator.isFeatureEnabled(pkg, PrefsSchema.Feature.LIQUID_GLASS_ENABLED)
+
+                AppUiState(
+                    packageName = pkg,
+                    label = info.label,
+                    icon = icon,
+                    family = info.family,
+                    liquidGlassEnabled = liquidGlassEnabled
+                )
+            }
+            _uiState.value = _uiState.value.copy(apps = appsList)
+        }
+    }
+
+    fun toggleLiquidGlass(packageName: String, enable: Boolean) {
+        ServiceLocator.setFeatureEnabled(packageName, PrefsSchema.Feature.LIQUID_GLASS_ENABLED, enable)
+        _uiState.value = _uiState.value.copy(
+            apps = _uiState.value.apps.map { app ->
+                if (app.packageName == packageName) {
+                    app.copy(liquidGlassEnabled = enable)
+                } else app
+            }
+        )
+    }
+
+    fun refresh() {
+        loadApps()
+    }
+}
+
+data class AppsUiState(
+    val apps: List<AppUiState> = emptyList()
+)
+
+data class AppUiState(
+    val packageName: String,
+    val label: String,
+    val icon: android.graphics.drawable.Drawable?,
+    val family: AppFamily,
+    val liquidGlassEnabled: Boolean
+)
