@@ -12,9 +12,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material3.Button
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -99,6 +103,7 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
                         title = "Scope",
                         subtitle = "26 Telegram variants + Twitter/X"
                     )
+                    DiagnosticsButton()
                 }
             }
         }
@@ -174,6 +179,57 @@ private fun SettingSwitch(
         }
         Switch(checked = checked, onCheckedChange = onChecked)
     }
+}
+
+/**
+ * One-tap bug-report bundle: scope, installed targets with versions,
+ * service state. Paste it into an issue instead of "nggak jalan bang".
+ */
+@Composable
+private fun DiagnosticsButton() {
+    val context = LocalContext.current
+    val clipboard = LocalClipboardManager.current
+    val diagnostics = remember {
+        buildDiagnostics(context)
+    }
+    Button(
+        onClick = { clipboard.setText(AnnotatedString(diagnostics)) },
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 6.dp)
+    ) {
+        Icon(
+            imageVector = Icons.Filled.ContentCopy,
+            contentDescription = null,
+            modifier = Modifier.size(20.dp)
+        )
+        Spacer(modifier = Modifier.size(8.dp))
+        Text("Salin info diagnostik")
+    }
+}
+
+private fun buildDiagnostics(context: android.content.Context): String {
+    val sb = StringBuilder()
+    sb.appendLine("KLYNT diagnostics")
+    try {
+        val pi = context.packageManager.getPackageInfo(context.packageName, 0)
+        sb.appendLine("manager=${pi.versionName} (${pi.longVersionCode})")
+    } catch (_: Exception) {
+        sb.appendLine("manager=?")
+    }
+    sb.appendLine("service=${com.unyxx.act.manager.di.ServiceLocator.isServiceAlive()}")
+    sb.appendLine("active=${com.unyxx.act.manager.di.ServiceLocator.isModuleActive()}")
+    sb.appendLine("scope=${com.unyxx.act.manager.di.ServiceLocator.getServiceScope().sorted()}")
+    try {
+        val targets = com.unyxx.act.manager.di.ServiceLocator.scopeManager()
+            .getInstallableTargetApps()
+        targets.forEach { (pkg, info) ->
+            sb.appendLine("$pkg v${info.version} :: ${info.label}")
+        }
+    } catch (_: Exception) {
+        sb.appendLine("targets=?")
+    }
+    return sb.toString()
 }
 
 @Composable

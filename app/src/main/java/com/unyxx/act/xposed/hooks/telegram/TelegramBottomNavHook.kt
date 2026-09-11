@@ -49,6 +49,12 @@ object TelegramBottomNavHook {
 
     private fun tryWrap(root: ViewGroup, pkg: String, log: (String) -> Unit): Boolean {
         if (root.width <= 0 || root.height <= 0) return false
+        // Tablets/foldables use a side rail instead of a bottom bar —
+        // wrapping here would only break layout, so stand down loudly.
+        if (root.resources.configuration.smallestScreenWidthDp >= 600) {
+            log("Skipping large-screen layout in $pkg (no bottom bar expected)")
+            return true
+        }
         val density = root.resources.displayMetrics.density
 
         val all = mutableListOf<View>()

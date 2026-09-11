@@ -26,6 +26,8 @@ object TwitterBottomNavHook {
         "ComposeView"
     )
 
+    private val AD_HINTS = listOf("ad", "promot", "sponsor")
+
     fun onResumed(
         activity: Activity,
         packageName: String,
@@ -50,6 +52,12 @@ object TwitterBottomNavHook {
 
     private fun tryWrap(root: ViewGroup, pkg: String, log: (String) -> Unit): Boolean {
         if (root.width <= 0 || root.height <= 0) return false
+        // Tablets/foldables use a side rail instead of a bottom bar —
+        // wrapping here would only break layout, so stand down loudly.
+        if (root.resources.configuration.smallestScreenWidthDp >= 600) {
+            log("Skipping large-screen layout in $pkg (no bottom bar expected)")
+            return true
+        }
         val density = root.resources.displayMetrics.density
 
         val all = mutableListOf<View>()
@@ -60,7 +68,8 @@ object TwitterBottomNavHook {
             .filter { v ->
                 NAV_CLASS_HINTS.any { v.javaClass.simpleName.contains(it, ignoreCase = true) } &&
                     isBottomAnchored(v, root) &&
-                    isWideEnough(v, root)
+                    isWideEnough(v, root) &&
+                    !looksLikeAd(v)
             }
             .maxByOrNull { it.bottom }
         if (byClass != null) return wrap(byClass, pkg, log)
@@ -68,11 +77,22 @@ object TwitterBottomNavHook {
         // 2) Density-independent fallback: 56–120dp tall (Compose bars run
         //    taller), near-full width, bottom edge in the lower 20%.
         val target = all
-            .filter { v -> isBottomAnchored(v, root, 0.80) && isNavSized(v, root, density) }
+            .filter { v ->
+                isBottomAnchored(v, root, 0.80) && isNavSized(v, root, density) && !looksLikeAd(v)
+            }
             .maxByOrNull { it.bottom }
         if (target != null) return wrap(target, pkg, log)
 
         return false
+    }
+
+    /**
+     * Sponsored cards also sit at the bottom and match the size heuristic,
+     * so reject anything advertising itself as promoted content.
+     */
+    private fun looksLikeAd(view: View): Boolean {
+        val label = view.contentDescription?.toString() ?: return false
+        return AD_HINTS.any { label.contains(it, ignoreCase = true) }
     }
 
     private fun wrap(view: View, pkg: String, log: (String) -> Unit): Boolean {
