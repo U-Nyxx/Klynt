@@ -5,6 +5,8 @@ import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -63,8 +65,34 @@ fun LiquidGlassTabBar(
     val haptic = LocalHapticFeedback.current
     val capsule = RoundedCornerShape(50)
     val selectedIndex = selectedPage.roundToInt().coerceIn(0, tabs.size - 1)
-    val selectedLavender = Color(0xFFD7C6FF)
-    val idleWhite = Color.White.copy(alpha = 0.87f)
+    // Dark: lavender-on-glass like the reference. Light: primary-on-glass
+    // so the capsule stays readable instead of going muddy.
+    val dark = isSystemInDarkTheme()
+    val selectedTint = if (dark) {
+        Color(0xFFD7C6FF)
+    } else {
+        MaterialTheme.colorScheme.primary
+    }
+    val idleTint = if (dark) {
+        Color.White.copy(alpha = 0.87f)
+    } else {
+        Color.Black.copy(alpha = 0.72f)
+    }
+    val borderTint = if (dark) {
+        Color.White.copy(alpha = 0.15f)
+    } else {
+        Color.Black.copy(alpha = 0.12f)
+    }
+    val pillTint = if (dark) {
+        Color.White.copy(alpha = 0.14f)
+    } else {
+        Color.Black.copy(alpha = 0.08f)
+    }
+    val highlightTop = if (dark) {
+        Color.White.copy(alpha = 0.10f)
+    } else {
+        Color.Black.copy(alpha = 0.05f)
+    }
 
     Box(
         modifier = modifier
@@ -83,7 +111,7 @@ fun LiquidGlassTabBar(
         Box(
             modifier = Modifier
                 .matchParentSize()
-                .border(1.dp, Color.White.copy(alpha = 0.15f), capsule)
+                .border(1.dp, borderTint, capsule)
         )
         // Top specular highlight.
         Box(
@@ -93,7 +121,7 @@ fun LiquidGlassTabBar(
                 .align(Alignment.TopCenter)
                 .background(
                     Brush.verticalGradient(
-                        listOf(Color.White.copy(alpha = 0.10f), Color.Transparent)
+                        listOf(highlightTop, Color.Transparent)
                     )
                 )
         )
@@ -112,7 +140,7 @@ fun LiquidGlassTabBar(
                     .width(indicatorWidth)
                     .height(56.dp)
                     .align(Alignment.CenterStart)
-                    .background(Color.White.copy(alpha = 0.14f), RoundedCornerShape(50))
+                    .background(pillTint, RoundedCornerShape(50))
             )
         }
         Row(
@@ -144,14 +172,14 @@ fun LiquidGlassTabBar(
                                 Icon(
                                     imageVector = if (isSelected) item.activeIcon else item.icon,
                                     contentDescription = item.label,
-                                    tint = if (isSelected) selectedLavender else idleWhite,
+                                    tint = if (isSelected) selectedTint else idleTint,
                                     modifier = Modifier.size(24.dp)
                                 )
                             }
                             Text(
                                 item.label,
                                 fontSize = 11.sp,
-                                color = if (isSelected) selectedLavender else idleWhite
+                                color = if (isSelected) selectedTint else idleTint
                             )
                         }
                     }

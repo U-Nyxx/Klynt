@@ -36,20 +36,28 @@ object BottomNavDiscovery {
     /**
      * @param root decor view of the target activity.
      * @param find returns true once the glass is injected (or already present).
+     * @param onExhausted runs once when retries end with no match, so a
+     * missing nav is visible in logs instead of silent.
      */
-    fun discover(root: ViewGroup, find: () -> Boolean) {
+    fun discover(root: ViewGroup, find: () -> Boolean, onExhausted: () -> Unit = {}) {
         val handler = Handler(Looper.getMainLooper())
         val done = AtomicBoolean(false)
         val attempts = AtomicInteger(0)
         lateinit var layoutListener: ViewTreeObserver.OnGlobalLayoutListener
 
-        fun finish() {
+        fun finish(success: Boolean) {
             if (done.compareAndSet(false, true)) {
                 handler.removeCallbacksAndMessages(null)
                 try {
                     root.viewTreeObserver.removeOnGlobalLayoutListener(layoutListener)
                 } catch (_: Throwable) {
                     // Observer dead or never registered — nothing to clean up.
+                }
+                if (!success) {
+                    try {
+                        onExhausted()
+                    } catch (_: Throwable) {
+                    }
                 }
             }
         }
@@ -63,7 +71,7 @@ object BottomNavDiscovery {
                 false
             }
             if (found || n > DELAYS_MS.size) {
-                finish()
+                finish(found)
                 return
             }
             handler.postDelayed({ attempt() }, DELAYS_MS[n - 1])
@@ -73,7 +81,7 @@ object BottomNavDiscovery {
         layoutListener = ViewTreeObserver.OnGlobalLayoutListener {
             if (done.get()) return@OnGlobalLayoutListener
             try {
-                if (find()) finish()
+                if (find()) finish(true)
             } catch (_: Throwable) {
                 // Probe failures are expected before first layout.
             }

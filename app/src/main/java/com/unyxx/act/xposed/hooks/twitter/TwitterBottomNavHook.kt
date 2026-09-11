@@ -44,7 +44,13 @@ object TwitterBottomNavHook {
             BottomNavWrapper.unwrapAll(decorView, packageName)
             return
         }
-        BottomNavDiscovery.discover(decorView) { tryWrap(decorView, packageName, prefs, log) }
+        BottomNavDiscovery.discover(
+            decorView,
+            find = { tryWrap(decorView, packageName, prefs, log) },
+            onExhausted = {
+                log("No bottom bar found in $packageName (target ${targetVersion(decorView, packageName)})")
+            }
+        )
     }
 
     private fun isActiveForApp(prefs: RemotePrefs, packageName: String): Boolean {

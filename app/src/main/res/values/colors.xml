@@ -4,4 +4,5 @@
     <color name="teal_200">#FF00D4AA</color>
     <color name="white">#FFFFFFFF</color>
     <color name="black">#FF000000</color>
+    <color name="launcher_bg">#FF101014</color>
 </resources>

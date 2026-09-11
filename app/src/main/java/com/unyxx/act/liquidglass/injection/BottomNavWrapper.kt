@@ -1,9 +1,12 @@
 package com.unyxx.act.liquidglass.injection
 
 import android.content.Context
+import android.os.Handler
+import android.os.Looper
 import android.util.AttributeSet
 import android.view.View
 import android.view.ViewGroup
+import android.view.ViewTreeObserver
 import android.widget.FrameLayout
 import com.unyxx.act.R
 import com.unyxx.act.liquidglass.KlyntLiquidGlassView
@@ -81,6 +84,10 @@ class BottomNavWrapper @JvmOverloads constructor(
 
     private var original: View? = null
     private var glass: KlyntLiquidGlassView? = null
+    private var scrollListener: ViewTreeObserver.OnScrollChangedListener? = null
+    private val scrollHandler = Handler(Looper.getMainLooper())
+    private var showRunnable: Runnable? = null
+    private var autoHideBound = false
 
     /** The wrapped navigation view, if still attached. */
     fun originalView(): View? = original
@@ -120,7 +127,58 @@ class BottomNavWrapper @JvmOverloads constructor(
         setTag(R.id.klynt_tag_wrapper, key)
 
         parent.addView(this, index, params)
+        bindAutoHide()
         return this
+    }
+
+    /**
+     * iOS-style minimize: slides the whole bar (content included) down
+     * while the host scrolls, restores it 1.5s after scrolling stops.
+     * Best-effort — never throws into the host app.
+     */
+    private fun bindAutoHide() {
+        if (autoHideBound) return
+        autoHideBound = true
+        val observer = try {
+            (parent as? View)?.viewTreeObserver?.takeIf { it.isAlive }
+        } catch (_: Throwable) {
+            null
+        } ?: return
+        scrollListener = ViewTreeObserver.OnScrollChangedListener {
+            onHostScrolled()
+        }
+        try {
+            observer.addOnScrollChangedListener(scrollListener)
+        } catch (_: Throwable) {
+            scrollListener = null
+        }
+    }
+
+    private fun onHostScrolled() {
+        if (!isAttachedToWindow) return
+        showRunnable?.let { scrollHandler.removeCallbacks(it) }
+        if (translationY == 0f && height > 0) {
+            animate().translationY(height.toFloat()).alpha(0f).setDuration(220).start()
+        }
+        val show = Runnable {
+            animate().translationY(0f).alpha(1f).setDuration(280).start()
+        }
+        showRunnable = show
+        scrollHandler.postDelayed(show, 1500)
+    }
+
+    private fun unbindAutoHide() {
+        autoHideBound = false
+        showRunnable?.let { scrollHandler.removeCallbacks(it) }
+        showRunnable = null
+        scrollListener?.let { listener ->
+            try {
+                (parent as? View)?.viewTreeObserver
+                    ?.removeOnScrollChangedListener(listener)
+            } catch (_: Throwable) {
+            }
+            scrollListener = null
+        }
     }
 
     /** Puts the original view back and drops the glass overlay. */
@@ -158,6 +216,10 @@ class BottomNavWrapper @JvmOverloads constructor(
 
     override fun onDetachedFromWindow() {
         super.onDetachedFromWindow()
+        unbindAutoHide()
+        animate().cancel()
+        translationY = 0f
+        alpha = 1f
         original?.setTag(R.id.klynt_tag_injected, null)
         glass = null
         original = null
