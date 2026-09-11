@@ -12,11 +12,10 @@ import com.unyxx.act.xposed.prefs.PrefsSchema
  * Installs the liquid-glass overlay on the X/Twitter bottom bar.
  *
  * X renders its chrome with Compose, so discovery also matches Compose
- * host views and taller bar heights. Layout-driven with backoff retries;
- * injection is idempotent.
+ * host views and taller bar heights. Called on every resumed activity
+ * and unwraps when disabled — no target restart required.
  */
 object TwitterBottomNavHook {
-    private const val MAIN_ACTIVITY = "com.twitter.android.MainActivity"
 
     private val NAV_CLASS_HINTS = listOf(
         "BottomNavigation",
@@ -27,28 +26,26 @@ object TwitterBottomNavHook {
         "ComposeView"
     )
 
-    fun install(
+    fun onResumed(
+        activity: Activity,
         packageName: String,
-        classLoader: ClassLoader,
         prefs: RemotePrefs,
-        hookAfterCreate: (Class<*>, (Activity) -> Unit) -> Unit,
         log: (String) -> Unit = {}
     ) {
         if (!TwitterVariants.isTwitter(packageName)) return
-        if (!prefs.isFeatureEnabled(packageName, PrefsSchema.Feature.LIQUID_GLASS_ENABLED)) return
+        if (activity.packageName != packageName) return
 
-        val activityClass = try {
-            Class.forName(MAIN_ACTIVITY, false, classLoader)
-        } catch (_: ClassNotFoundException) {
+        val decorView = activity.window?.decorView as? ViewGroup ?: return
+        if (!isActiveForApp(prefs, packageName)) {
+            BottomNavWrapper.unwrapAll(decorView, packageName)
             return
         }
+        BottomNavDiscovery.discover(decorView) { tryWrap(decorView, packageName, log) }
+    }
 
-        hookAfterCreate(activityClass) { activity ->
-            if (activity.packageName != packageName) return@hookAfterCreate
-
-            val decorView = activity.window?.decorView as? ViewGroup ?: return@hookAfterCreate
-            BottomNavDiscovery.discover(decorView) { tryWrap(decorView, packageName, log) }
-        }
+    private fun isActiveForApp(prefs: RemotePrefs, packageName: String): Boolean {
+        if (!prefs.getBoolean(PrefsSchema.GLOBAL_LIQUID_GLASS_ENABLED, true)) return false
+        return prefs.isFeatureEnabled(packageName, PrefsSchema.Feature.LIQUID_GLASS_ENABLED)
     }
 
     private fun tryWrap(root: ViewGroup, pkg: String, log: (String) -> Unit): Boolean {

@@ -11,12 +11,11 @@ import com.unyxx.act.xposed.prefs.PrefsSchema
 /**
  * Installs the liquid-glass overlay on Telegram-family bottom navigation.
  *
- * Discovery is layout-driven ([BottomNavDiscovery]) rather than a single
- * fixed delay: class-name match first, density-independent size heuristic
- * as fallback. Safe to run repeatedly — injection is idempotent.
+ * Called on every resumed activity (not just `onCreate`), so late
+ * enables and recreated views are covered. Reads prefs fresh on each
+ * call and unwraps when disabled — no target restart required.
  */
 object TelegramBottomNavHook {
-    private const val LAUNCH_ACTIVITY = "org.telegram.ui.LaunchActivity"
 
     private val NAV_CLASS_HINTS = listOf(
         "BottomNavigationView",
@@ -26,28 +25,26 @@ object TelegramBottomNavHook {
         "TabLayout"
     )
 
-    fun install(
+    fun onResumed(
+        activity: Activity,
         packageName: String,
-        classLoader: ClassLoader,
         prefs: RemotePrefs,
-        hookAfterCreate: (Class<*>, (Activity) -> Unit) -> Unit,
         log: (String) -> Unit = {}
     ) {
         if (!TelegramVariants.isTelegram(packageName)) return
-        if (!prefs.isFeatureEnabled(packageName, PrefsSchema.Feature.LIQUID_GLASS_ENABLED)) return
+        if (activity.packageName != packageName) return
 
-        val activityClass = try {
-            Class.forName(LAUNCH_ACTIVITY, false, classLoader)
-        } catch (_: ClassNotFoundException) {
+        val decorView = activity.window?.decorView as? ViewGroup ?: return
+        if (!isActiveForApp(prefs, packageName)) {
+            BottomNavWrapper.unwrapAll(decorView, packageName)
             return
         }
+        BottomNavDiscovery.discover(decorView) { tryWrap(decorView, packageName, log) }
+    }
 
-        hookAfterCreate(activityClass) { activity ->
-            if (activity.packageName != packageName) return@hookAfterCreate
-
-            val decorView = activity.window?.decorView as? ViewGroup ?: return@hookAfterCreate
-            BottomNavDiscovery.discover(decorView) { tryWrap(decorView, packageName, log) }
-        }
+    private fun isActiveForApp(prefs: RemotePrefs, packageName: String): Boolean {
+        if (!prefs.getBoolean(PrefsSchema.GLOBAL_LIQUID_GLASS_ENABLED, true)) return false
+        return prefs.isFeatureEnabled(packageName, PrefsSchema.Feature.LIQUID_GLASS_ENABLED)
     }
 
     private fun tryWrap(root: ViewGroup, pkg: String, log: (String) -> Unit): Boolean {

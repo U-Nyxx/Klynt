@@ -1,7 +1,6 @@
 package com.unyxx.act.xposed
 
 import android.app.Activity
-import android.os.Bundle
 import android.util.Log
 import com.unyxx.act.xposed.hooks.telegram.TelegramBottomNavHook
 import com.unyxx.act.xposed.hooks.telegram.TelegramVariants
@@ -12,20 +11,22 @@ import com.unyxx.act.xposed.prefs.RemotePrefs
 import io.github.libxposed.api.XposedModule
 import io.github.libxposed.api.XposedModuleInterface.ModuleLoadedParam
 import io.github.libxposed.api.XposedModuleInterface.PackageLoadedParam
-import java.lang.reflect.Method
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * KLYNT Xposed entry point (libxposed API 101).
  *
- * Lifecycle: [onModuleLoaded] once per process, then [onPackageLoaded]
- * per package. No work happens before [onModuleLoaded] — the framework
- * attaches itself automatically.
+ * A single `Instrumentation.callActivityOnResume` hook per target process
+ * covers every activity (late enables, recreations, all screens) instead
+ * of one-shot `onCreate` hooks. Discovery itself is idempotent.
  */
 class KlyntModule : XposedModule() {
 
     companion object {
         const val TAG = "KLYNT"
     }
+
+    private val resumeHookInstalled = AtomicBoolean(false)
 
     override fun onModuleLoaded(param: ModuleLoadedParam) {
         log(Log.INFO, TAG, "onModuleLoaded: ${param.processName} framework=$frameworkName api=$apiVersion")
@@ -39,38 +40,44 @@ class KlyntModule : XposedModule() {
     override fun onPackageLoaded(param: PackageLoadedParam) {
         val pkg = param.packageName
         if (pkg == PrefsSchema.MODULE_PACKAGE) return
+        if (!TelegramVariants.isTelegram(pkg) && !TwitterVariants.isTwitter(pkg)) return
+        if (!resumeHookInstalled.compareAndSet(false, true)) return
 
         val prefs = runCatching { RemotePrefs.getInstance() }.getOrNull() ?: return
-        // Framework-log sink threaded through discovery so every
-        // successful injection lands in LSPosed logs with target version.
-        val logSink: (String) -> Unit = { msg -> log(Log.INFO, TAG, msg) }
         try {
-            when {
-                TelegramVariants.isTelegram(pkg) ->
-                    TelegramBottomNavHook.install(pkg, param.defaultClassLoader, prefs, ::hookAfterActivityCreate, logSink)
-                TwitterVariants.isTwitter(pkg) ->
-                    TwitterBottomNavHook.install(pkg, param.defaultClassLoader, prefs, ::hookAfterActivityCreate, logSink)
+            val instrumentation = Class.forName("android.app.Instrumentation")
+            val resume = instrumentation.getDeclaredMethod(
+                "callActivityOnResume", Activity::class.java
+            )
+            hook(resume).intercept { chain ->
+                val result = chain.proceed()
+                try {
+                    val activity = chain.args.getOrNull(0) as? Activity
+                    if (activity != null && activity.packageName == pkg) {
+                        onTargetActivityResumed(activity, pkg, prefs)
+                    }
+                } catch (t: Throwable) {
+                    log(Log.WARN, TAG, "resume dispatch failed: ${t.message}")
+                }
+                result
             }
+            log(Log.INFO, TAG, "Resume hook installed for $pkg")
         } catch (t: Throwable) {
             log(Log.ERROR, TAG, "Hook install failed for $pkg: ${t.message}")
         }
     }
 
-    /**
-     * Hooks `Activity.onCreate` and runs [after] once the original
-     * implementation has completed (interceptor-chain equivalent of
-     * legacy `afterHookedMethod`).
-     */
-    private fun hookAfterActivityCreate(activityClass: Class<*>, after: (Activity) -> Unit) {
-        val onCreate: Method = activityClass.getDeclaredMethod("onCreate", Bundle::class.java)
-        hook(onCreate).intercept { chain ->
-            val result = chain.proceed()
-            try {
-                (chain.thisObject as? Activity)?.let(after)
-            } catch (t: Throwable) {
-                log(Log.WARN, TAG, "afterCreate failed: ${t.message}")
+    private fun onTargetActivityResumed(activity: Activity, pkg: String, prefs: RemotePrefs) {
+        val sink: (String) -> Unit = { msg -> log(Log.INFO, TAG, msg) }
+        try {
+            when {
+                TelegramVariants.isTelegram(pkg) ->
+                    TelegramBottomNavHook.onResumed(activity, pkg, prefs, sink)
+                TwitterVariants.isTwitter(pkg) ->
+                    TwitterBottomNavHook.onResumed(activity, pkg, prefs, sink)
             }
-            result
+        } catch (t: Throwable) {
+            log(Log.ERROR, TAG, "Resume handling failed for $pkg: ${t.message}")
         }
     }
 }

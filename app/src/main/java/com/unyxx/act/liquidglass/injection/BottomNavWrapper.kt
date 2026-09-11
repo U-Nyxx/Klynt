@@ -29,6 +29,30 @@ class BottomNavWrapper @JvmOverloads constructor(
             return view.getTag(R.id.klynt_tag_injected) == key ||
                 (view.parent as? ViewGroup)?.getTag(R.id.klynt_tag_wrapper) == key
         }
+
+        /**
+         * Restores every wrapped navigation view under [root] to its
+         * original slot. Called when the feature is toggled off so no
+         * target restart is required.
+         */
+        fun unwrapAll(root: ViewGroup, pkg: String) {
+            val key = injectionKey(pkg)
+            val found = mutableListOf<BottomNavWrapper>()
+            collectWrappers(root, found, key)
+            found.forEach { it.restore() }
+        }
+
+        private fun collectWrappers(view: View, out: MutableList<BottomNavWrapper>, key: String) {
+            if (view is BottomNavWrapper && view.getTag(R.id.klynt_tag_wrapper) == key) {
+                out.add(view)
+                return
+            }
+            if (view is ViewGroup) {
+                for (i in 0 until view.childCount) {
+                    collectWrappers(view.getChildAt(i), out, key)
+                }
+            }
+        }
     }
 
     private var original: View? = null
@@ -64,6 +88,22 @@ class BottomNavWrapper @JvmOverloads constructor(
 
         parent.addView(this, index, params)
         return this
+    }
+
+    /** Puts the original view back and drops the glass overlay. */
+    private fun restore() {
+        val orig = original ?: return
+        val parent = parent as? ViewGroup
+        val params = layoutParams
+        if (parent != null && params != null) {
+            val index = parent.indexOfChild(this).coerceAtLeast(0)
+            parent.removeView(this)
+            orig.layoutParams = params
+            parent.addView(orig, index, params)
+        }
+        orig.setTag(R.id.klynt_tag_injected, null)
+        original = null
+        glass = null
     }
 
     override fun onAttachedToWindow() {
