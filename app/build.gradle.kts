@@ -24,6 +24,10 @@ android {
         versionName = "1.0.1"
     }
 
+    buildFeatures {
+        buildConfig = true
+    }
+
     // One codebase, two Xposed generations. api101 runs on 101+ runtimes;
     // api102 adds hot-reload and needs a 102 framework.
     flavorDimensions += "xposed"
