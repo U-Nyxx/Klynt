@@ -101,6 +101,7 @@ dependencies {
     api("androidx.compose.material:material-icons-core")
     api("androidx.compose.material:material-icons-extended")
     implementation("androidx.activity:activity-compose:1.9.2")
+    implementation("androidx.compose.foundation:foundation")
     implementation("androidx.navigation:navigation-compose:2.8.4")
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.core:core-splashscreen:1.0.1")

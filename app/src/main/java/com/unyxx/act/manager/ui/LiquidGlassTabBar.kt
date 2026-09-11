@@ -18,15 +18,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Article
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.outlined.Article
-import androidx.compose.material.icons.outlined.Home
-import androidx.compose.material.icons.outlined.Menu
-import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Icon
@@ -43,36 +34,35 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.unyxx.act.R
+import androidx.compose.ui.viewinterop.AndroidView
+import com.unyxx.act.liquidglass.KlyntLiquidGlassView
+import kotlin.math.roundToInt
 
 /**
  * Floating glass capsule bottom bar (LSPosed-manager look, iOS feel).
  *
- * Layers bottom-to-top: dark scrim → 1dp light border → top specular
- * highlight → one shared sliding pill (spring) → icon + label tabs.
+ * Layers bottom-to-top: live QWEA0 glass (real backdrop blur, same
+ * engine as the hook overlay) → 1dp light border → top specular
+ * highlight → one shared pill tracking the page fractionally (spring
+ * on tap, 1:1 while dragging) → icon + label tabs.
  * Active tab uses filled glyphs in lavender, inactive outlined in white.
+ *
+ * @param selectedPage fractional page position (page + offset) so the
+ * pill follows the finger during pager swipes.
  */
 @Composable
 fun LiquidGlassTabBar(
-    currentRoute: String,
-    onTabSelected: (String) -> Unit,
-    modifier: Modifier = Modifier,
-    /** Enabled-target count shown as a badge on Apps; hidden when service is down. */
-    appsBadge: Int = 0,
-    showLogs: Boolean = true
+    tabs: List<TabItem>,
+    selectedPage: Float,
+    onPageSelected: (Int) -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val haptic = LocalHapticFeedback.current
     val capsule = RoundedCornerShape(50)
-    val tabs = listOf(
-        TabItem(stringResource(R.string.tab_home), "home", Icons.Filled.Home, Icons.Outlined.Home),
-        TabItem(stringResource(R.string.tab_apps), "apps", Icons.Filled.Menu, Icons.Outlined.Menu, appsBadge),
-        TabItem(stringResource(R.string.tab_settings), "settings", Icons.Filled.Settings, Icons.Outlined.Settings),
-        TabItem(stringResource(R.string.tab_logs), "logs", Icons.Filled.Article, Icons.Outlined.Article)
-    ).filter { it.route != "logs" || showLogs }
-    val selectedIndex = tabs.indexOfFirst { it.route == currentRoute }.coerceAtLeast(0)
+    val selectedIndex = selectedPage.roundToInt().coerceIn(0, tabs.size - 1)
     val selectedLavender = Color(0xFFD7C6FF)
     val idleWhite = Color.White.copy(alpha = 0.87f)
 
@@ -82,10 +72,19 @@ fun LiquidGlassTabBar(
             .padding(horizontal = 16.dp)
             .padding(bottom = 12.dp)
             .height(76.dp)
-            .background(Color.Black.copy(alpha = 0.62f), capsule)
-            .border(1.dp, Color.White.copy(alpha = 0.15f), capsule)
             .clip(capsule)
     ) {
+        // Live glass backdrop (own engine, zero new dependencies).
+        AndroidView(
+            factory = { context -> KlyntLiquidGlassView(context) },
+            modifier = Modifier.matchParentSize()
+        )
+        // 1dp light border.
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .border(1.dp, Color.White.copy(alpha = 0.15f), capsule)
+        )
         // Top specular highlight.
         Box(
             modifier = Modifier
@@ -98,22 +97,12 @@ fun LiquidGlassTabBar(
                     )
                 )
         )
-        // One shared sliding pill behind the active tab.
+        // One shared pill tracking the page fractionally.
         BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-            val indicatorWidth = 68.dp
-            val targetX = maxWidth * (selectedIndex + 0.5f) / tabs.size - indicatorWidth / 2
-            val pillX by animateDpAsState(
-                targetValue = targetX,
-                animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
-                label = "tab_pill"
-            )
-            Box(
-                modifier = Modifier
-                    .offset(x = pillX)
-                    .width(indicatorWidth)
-                    .height(56.dp)
-                    .align(Alignment.CenterStart)
-                    .background(Color.White.copy(alpha = 0.14f), RoundedCornerShape(50))
+            TabPill(
+                tabsSize = tabs.size,
+                selectedPage = selectedPage,
+                maxWidth = maxWidth
             )
         }
         Row(
@@ -130,7 +119,7 @@ fun LiquidGlassTabBar(
                     IconButton(
                         onClick = {
                             haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                            onTabSelected(item.route)
+                            onPageSelected(index)
                         },
                         modifier = Modifier.size(48.dp)
                     ) {
@@ -160,6 +149,25 @@ fun LiquidGlassTabBar(
             }
         }
     }
+}
+
+@Composable
+private fun TabPill(tabsSize: Int, selectedPage: Float, maxWidth: Dp) {
+    val indicatorWidth = 68.dp
+    val targetX = maxWidth * (selectedPage + 0.5f) / tabsSize - indicatorWidth / 2
+    val pillX by animateDpAsState(
+        targetValue = targetX,
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        label = "tab_pill"
+    )
+    Box(
+        modifier = Modifier
+            .offset(x = pillX)
+            .width(indicatorWidth)
+            .height(56.dp)
+            .align(Alignment.CenterStart)
+            .background(Color.White.copy(alpha = 0.14f), RoundedCornerShape(50))
+    )
 }
 
 data class TabItem(
