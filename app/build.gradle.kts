@@ -84,11 +84,12 @@ android {
 }
 
 dependencies {
-    // Xposed API + Service, per flavor generation.
-    api101CompileOnly("io.github.libxposed:api:101.0.0")
-    api101Implementation("io.github.libxposed:service:101.0.0")
-    api102CompileOnly("io.github.libxposed:api:102.0.0")
-    api102Implementation("io.github.libxposed:service:102.0.0")
+    // Xposed API + Service, per flavor generation
+    // (flavor configurations have no type-safe DSL accessors, use add()).
+    add("api101CompileOnly", "io.github.libxposed:api:101.0.0")
+    add("api101Implementation", "io.github.libxposed:service:101.0.0")
+    add("api102CompileOnly", "io.github.libxposed:api:102.0.0")
+    add("api102Implementation", "io.github.libxposed:service:102.0.0")
 
     // Liquid Glass (JitPack)
     implementation("com.github.QWEA0:liquidglass:v2.0.8")
