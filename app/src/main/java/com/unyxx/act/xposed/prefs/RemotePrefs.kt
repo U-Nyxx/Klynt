@@ -1,7 +1,6 @@
 package com.unyxx.act.xposed.prefs
 
 import android.content.SharedPreferences
-import de.robv.android.xposed.XSharedPreferences
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.awaitClose
@@ -44,27 +43,14 @@ class RemotePrefs private constructor(
         prefs.registerOnSharedPreferenceChangeListener(listener)
     }
 
-    /**
-     * Re-reads the backing file. Mandatory before every read: without it
-     * cross-process writes from the manager are never visible here.
-     */
-    fun refresh(): Boolean =
-        (prefs as? XSharedPreferences)?.reload() ?: true
+    fun getBoolean(key: String, default: Boolean = false): Boolean =
+        prefs.getBoolean(key, default)
 
-    fun getBoolean(key: String, default: Boolean = false): Boolean {
-        refresh()
-        return prefs.getBoolean(key, default)
-    }
+    fun getString(key: String, default: String = ""): String =
+        prefs.getString(key, default) ?: default
 
-    fun getString(key: String, default: String = ""): String {
-        refresh()
-        return prefs.getString(key, default) ?: default
-    }
-
-    fun getInt(key: String, default: Int = 0): Int {
-        refresh()
-        return prefs.getInt(key, default)
-    }
+    fun getInt(key: String, default: Int = 0): Int =
+        prefs.getInt(key, default)
 
     fun observeBoolean(key: String): StateFlow<Boolean> {
         val initial = prefs.getBoolean(key, false)
