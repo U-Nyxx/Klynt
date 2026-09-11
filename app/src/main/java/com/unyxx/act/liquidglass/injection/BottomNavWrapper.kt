@@ -26,8 +26,32 @@ class BottomNavWrapper @JvmOverloads constructor(
         /** True when [view] (or its wrapper parent) already carries our glass. */
         fun isInjected(view: View, pkg: String): Boolean {
             val key = injectionKey(pkg)
-            return view.getTag(R.id.klynt_tag_injected) == key ||
+            return isOurs(view) ||
+                view.getTag(R.id.klynt_tag_injected) == key ||
                 (view.parent as? ViewGroup)?.getTag(R.id.klynt_tag_wrapper) == key
+        }
+
+        /** True for our own views — never wrap these, never treat as nav. */
+        fun isOurs(view: View): Boolean {
+            if (view is BottomNavWrapper) return true
+            if (view is KlyntLiquidGlassView) return true
+            return view.getTag(R.id.klynt_tag_injected) != null ||
+                view.getTag(R.id.klynt_tag_wrapper) != null
+        }
+
+        /** Finds our wrapper for [pkg] under [root], if any. */
+        fun findWrapper(root: ViewGroup, pkg: String): BottomNavWrapper? {
+            val key = injectionKey(pkg)
+            val stack = ArrayDeque<View>()
+            stack.add(root)
+            while (stack.isNotEmpty()) {
+                val v = stack.removeLast()
+                if (v is BottomNavWrapper && v.getTag(R.id.klynt_tag_wrapper) == key) return v
+                if (v is ViewGroup) {
+                    for (i in 0 until v.childCount) stack.add(v.getChildAt(i))
+                }
+            }
+            return null
         }
 
         /**
@@ -57,6 +81,9 @@ class BottomNavWrapper @JvmOverloads constructor(
 
     private var original: View? = null
     private var glass: KlyntLiquidGlassView? = null
+
+    /** The wrapped navigation view, if still attached. */
+    fun originalView(): View? = original
 
     /**
      * @return the wrapper now occupying the original view's slot,

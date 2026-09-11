@@ -25,6 +25,18 @@ object TelegramBottomNavHook {
         "TabLayout"
     )
 
+    /** Sheets/dialogs/popups live at the bottom too — never wrap those. */
+    private val DENY_HINTS = listOf(
+        "BottomSheet",
+        "Dialog",
+        "Popup",
+        "Snackbar",
+        "Toast",
+        "Tooltip",
+        "AlertDialog",
+        "ActionMenu"
+    )
+
     fun onResumed(
         activity: Activity,
         packageName: String,
@@ -57,11 +69,24 @@ object TelegramBottomNavHook {
         }
         val density = root.resources.displayMetrics.density
 
+        // 0) Previously wrapped view still valid? If it outgrew nav size
+        //    (wrapped too early while loading), unwrap and keep looking.
+        BottomNavWrapper.findWrapper(root, pkg)?.let { w ->
+            val orig = w.originalView()
+            if (orig != null && isBottomAnchored(orig, root) && isNavSized(orig, root, density)) {
+                return true
+            }
+            BottomNavWrapper.unwrapAll(root, pkg)
+        }
+
         val all = mutableListOf<View>()
         BottomNavDiscovery.collectAll(root, all)
+        val candidates = all.filter { v ->
+            v.isLaidOut && !BottomNavWrapper.isOurs(v) && !isDenied(v)
+        }
 
         // 1) Known navigation widget classes anchored at the bottom.
-        val byClass = all
+        val byClass = candidates
             .filter { v ->
                 NAV_CLASS_HINTS.any { v.javaClass.simpleName.contains(it, ignoreCase = true) } &&
                     isBottomAnchored(v, root)
@@ -71,11 +96,22 @@ object TelegramBottomNavHook {
 
         // 2) Density-independent fallback: 48–80dp tall, near-full width,
         //    bottom edge inside the lower 15% of the screen.
-        val target = all
+        val target = candidates
             .filter { v -> isBottomAnchored(v, root) && isNavSized(v, root, density) }
             .maxByOrNull { it.bottom }
         if (target != null) return wrap(target, pkg, log)
 
+        return false
+    }
+
+    private fun isDenied(view: View): Boolean {
+        var v: View? = view
+        var depth = 0
+        while (v != null && depth < 4) {
+            if (DENY_HINTS.any { v.javaClass.simpleName.contains(it, ignoreCase = true) }) return true
+            v = v.parent as? View
+            depth++
+        }
         return false
     }
 
@@ -109,6 +145,9 @@ object TelegramBottomNavHook {
     private fun isNavSized(view: View, root: ViewGroup, density: Float): Boolean {
         val (w, h) = laidOutSize(view)
         if (w <= 0 || h <= 0) return false
+        // Hard cap: a bottom bar is never taller than 30% of the screen.
+        // This alone kills the giant-lens false positive.
+        if (h > root.height * 0.3) return false
         val hDp = BottomNavDiscovery.pxToDp(h, density)
         return hDp in 48f..80f && w >= root.width * 0.85
     }

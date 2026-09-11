@@ -17,13 +17,15 @@ import com.unyxx.act.xposed.prefs.PrefsSchema
  */
 object TwitterBottomNavHook {
 
+    // NOTE: bare "ComposeView" deliberately absent — a full-screen
+    // Compose root matches it and produces a giant lens. Compose bars
+    // are still caught by the dp fallback below.
     private val NAV_CLASS_HINTS = listOf(
         "BottomNavigation",
         "BottomBar",
         "NavigationBar",
         "TabBar",
-        "PivotBar",
-        "ComposeView"
+        "PivotBar"
     )
 
     private val AD_HINTS = listOf("ad", "promot", "sponsor")
@@ -60,25 +62,37 @@ object TwitterBottomNavHook {
         }
         val density = root.resources.displayMetrics.density
 
+        // 0) Previously wrapped view still valid? If it outgrew nav size
+        //    (wrapped too early while loading), unwrap and keep looking.
+        BottomNavWrapper.findWrapper(root, pkg)?.let { w ->
+            val orig = w.originalView()
+            if (orig != null && isBottomAnchored(orig, root, 0.90) && isNavSized(orig, root, density)) {
+                return true
+            }
+            BottomNavWrapper.unwrapAll(root, pkg)
+        }
+
         val all = mutableListOf<View>()
         BottomNavDiscovery.collectAll(root, all)
+        val candidates = all.filter { v ->
+            v.isLaidOut && !BottomNavWrapper.isOurs(v) && !looksLikeAd(v)
+        }
 
         // 1) Navigation-ish widget classes anchored at the bottom.
-        val byClass = all
+        val byClass = candidates
             .filter { v ->
                 NAV_CLASS_HINTS.any { v.javaClass.simpleName.contains(it, ignoreCase = true) } &&
-                    isBottomAnchored(v, root) &&
-                    isWideEnough(v, root) &&
-                    !looksLikeAd(v)
+                    isBottomAnchored(v, root, 0.90) &&
+                    isWideEnough(v, root)
             }
             .maxByOrNull { it.bottom }
         if (byClass != null) return wrap(byClass, pkg, log)
 
         // 2) Density-independent fallback: 56–120dp tall (Compose bars run
         //    taller), near-full width, bottom edge in the lower 20%.
-        val target = all
+        val target = candidates
             .filter { v ->
-                isBottomAnchored(v, root, 0.80) && isNavSized(v, root, density) && !looksLikeAd(v)
+                isBottomAnchored(v, root, 0.80) && isNavSized(v, root, density)
             }
             .maxByOrNull { it.bottom }
         if (target != null) return wrap(target, pkg, log)
@@ -130,6 +144,9 @@ object TwitterBottomNavHook {
     private fun isNavSized(view: View, root: ViewGroup, density: Float): Boolean {
         val (w, h) = laidOutSize(view)
         if (w <= 0 || h <= 0) return false
+        // Hard cap: a bottom bar is never taller than 30% of the screen.
+        // This alone kills the giant-lens false positive.
+        if (h > root.height * 0.3) return false
         val hDp = BottomNavDiscovery.pxToDp(h, density)
         return hDp in 56f..120f && w >= root.width * 0.85
     }
