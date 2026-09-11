@@ -15,8 +15,8 @@ plugins {
 
 android {
     namespace = "com.unyxx.act"
-    // 36 required by io.github.libxposed 101 AAR metadata (targetSdk stays 35)
-    compileSdk = 36
+    // 37 required by io.github.libxposed 102 AAR metadata (targetSdk stays 35)
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.unyxx.act"
