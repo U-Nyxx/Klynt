@@ -10,7 +10,6 @@ plugins {
     id("org.jetbrains.kotlin.android") version "2.2.10"
     id("org.jetbrains.kotlin.plugin.compose") version "2.2.10"
     id("org.jetbrains.kotlin.plugin.serialization") version "2.2.10"
-    id("kotlin-kapt")
 }
 
 android {
@@ -143,13 +142,4 @@ dependencies {
     androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
     androidTestImplementation("androidx.compose.ui:ui-test-junit4:1.6.1")
     androidTestImplementation("androidx.compose.ui:ui-test-manifest:1.6.1")
-}
-
-kapt {
-    correctErrorTypes = true
-    arguments {
-        arg("kapt.incremental.apt", "true")
-        arg("kapt.use.worker.api", "true")
-        arg("kapt.language.version", "1.9")
-    }
 }
