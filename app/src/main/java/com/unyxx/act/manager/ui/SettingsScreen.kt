@@ -13,10 +13,13 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Button
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.material3.Card
@@ -40,6 +43,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.unyxx.act.manager.update.UpdateState
 import com.unyxx.act.manager.viewmodel.SettingsViewModel
 
 /** Functional settings: global kill-switch, auto-start, about. */
@@ -48,6 +52,7 @@ import com.unyxx.act.manager.viewmodel.SettingsViewModel
 fun SettingsScreen(viewModel: SettingsViewModel) {
     val globalEnabled by viewModel.globalEnabled.collectAsState()
     val autoStart by viewModel.autoStart.collectAsState()
+    val updateState by viewModel.updateState.collectAsState()
     val context = LocalContext.current
     val appVersion = remember {
         try {
@@ -94,6 +99,15 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
                 }
             }
             item {
+                UpdateSection(
+                    state = updateState,
+                    onCheck = { viewModel.checkForUpdates(context, force = true) },
+                    onDownload = { viewModel.startDownload(context) },
+                    onCancel = { viewModel.cancelDownload(context) },
+                    onInstall = { viewModel.installUpdate(context) }
+                )
+            }
+            item {
                 SettingsSection(title = "About", icon = Icons.Filled.Info) {
                     SettingInfo(
                         title = "Version",
@@ -107,6 +121,145 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
                 }
             }
         }
+    }
+}
+
+/**
+ * In-app update from GitHub releases: manual check, changelog preview,
+ * system download with progress, package installer launch.
+ */
+@Composable
+private fun UpdateSection(
+    state: UpdateState,
+    onCheck: () -> Unit,
+    onDownload: () -> Unit,
+    onCancel: () -> Unit,
+    onInstall: () -> Unit
+) {
+    SettingsSection(title = "Update", icon = Icons.Filled.Download) {
+        when (state) {
+            is UpdateState.Idle, is UpdateState.Checking -> {
+                SettingInfo(
+                    title = if (state is UpdateState.Checking) "Memeriksa…" else "Belum diperiksa",
+                    subtitle = "Cek rilis GitHub terbaru"
+                )
+                UpdateButton(
+                    label = if (state is UpdateState.Checking) "Memeriksa…" else "Periksa pembaruan",
+                    icon = Icons.Filled.Refresh,
+                    enabled = state !is UpdateState.Checking,
+                    onClick = onCheck
+                )
+            }
+            is UpdateState.UpToDate -> {
+                SettingInfo(
+                    title = "Sudah terbaru",
+                    subtitle = "v${state.version}"
+                )
+                UpdateButton(
+                    label = "Periksa lagi",
+                    icon = Icons.Filled.Refresh,
+                    enabled = true,
+                    onClick = onCheck
+                )
+            }
+            is UpdateState.Available -> {
+                val info = state.info
+                SettingInfo(
+                    title = "Tersedia v${info.version}",
+                    subtitle = "${"%.1f".format(info.sizeBytes / 1048576f)} MB"
+                )
+                Text(
+                    info.notes.ifBlank { "Lihat halaman rilis untuk detail." },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 10,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(vertical = 6.dp)
+                )
+                UpdateButton(
+                    label = "Unduh & Pasang",
+                    icon = Icons.Filled.Download,
+                    enabled = true,
+                    onClick = onDownload
+                )
+            }
+            is UpdateState.Downloading -> {
+                val progress = state.progress
+                if (progress != null) {
+                    LinearProgressIndicator(
+                        progress = { progress },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 6.dp)
+                    )
+                    Text(
+                        "${(progress * 100).toInt()}%",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else {
+                    LinearProgressIndicator(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 6.dp)
+                    )
+                }
+                UpdateButton(
+                    label = "Batal",
+                    icon = Icons.Filled.Refresh,
+                    enabled = true,
+                    onClick = onCancel
+                )
+            }
+            is UpdateState.Downloaded -> {
+                SettingInfo(
+                    title = "Unduhan selesai",
+                    subtitle = "Tap Pasang, izinkan instal, lalu reboot scope bila diminta"
+                )
+                UpdateButton(
+                    label = "Pasang sekarang",
+                    icon = Icons.Filled.Download,
+                    enabled = true,
+                    onClick = onInstall
+                )
+            }
+            is UpdateState.Failed -> {
+                SettingInfo(
+                    title = "Gagal",
+                    subtitle = state.message
+                )
+                UpdateButton(
+                    label = "Coba lagi",
+                    icon = Icons.Filled.Refresh,
+                    enabled = true,
+                    onClick = onCheck
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun UpdateButton(
+    label: String,
+    icon: ImageVector,
+    enabled: Boolean,
+    onClick: () -> Unit
+) {
+    Button(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 6.dp)
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            modifier = Modifier.size(20.dp)
+        )
+        Spacer(modifier = Modifier.size(8.dp))
+        Text(label)
     }
 }
 

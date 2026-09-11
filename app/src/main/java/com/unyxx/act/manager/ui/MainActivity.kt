@@ -44,6 +44,10 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             KlyntTheme {
+                // Silent daily update check (24h cache inside).
+                androidx.compose.runtime.LaunchedEffect(Unit) {
+                    settingsViewModel.checkForUpdates(applicationContext, force = false)
+                }
                 val navController = rememberNavController()
                 val navBackStackEntry by navController.currentBackStackEntryAsState()
                 val currentRoute = navBackStackEntry?.destination?.route ?: "home"
