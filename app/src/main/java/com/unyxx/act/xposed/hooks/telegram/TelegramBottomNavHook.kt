@@ -87,6 +87,15 @@ object TelegramBottomNavHook {
 
         val all = mutableListOf<View>()
         BottomNavDiscovery.collectAll(root, all)
+
+        // 0b) Official main tabs: BottomSheetTabs is the real bottom bar
+        //     ONLY when hosted directly by ActionBarLayout (dialog sheets
+        //     reuse the same class and must stay excluded).
+        val main = all
+            .filter { v -> v.isLaidOut && !BottomNavWrapper.isOurs(v) && isMainTabs(v) }
+            .maxByOrNull { screenBottom(it) }
+        if (main != null) return wrap(main, pkg, log, prefs)
+
         val candidates = all.filter { v ->
             v.isLaidOut && !BottomNavWrapper.isOurs(v) && !isDenied(v)
         }
@@ -97,17 +106,34 @@ object TelegramBottomNavHook {
                 NAV_CLASS_HINTS.any { v.javaClass.simpleName.contains(it, ignoreCase = true) } &&
                     isBottomAnchored(v, root)
             }
-            .maxByOrNull { it.bottom }
+            .maxByOrNull { screenBottom(it) }
         if (byClass != null) return wrap(byClass, pkg, log, prefs)
 
         // 2) Density-independent fallback: 48–80dp tall, near-full width,
         //    bottom edge inside the lower 15% of the screen.
         val target = candidates
             .filter { v -> isBottomAnchored(v, root) && isNavSized(v, root, density) }
-            .maxByOrNull { it.bottom }
+            .maxByOrNull { screenBottom(it) }
         if (target != null) return wrap(target, pkg, log, prefs)
 
         return false
+    }
+
+    private fun isMainTabs(view: View): Boolean {
+        if (view.javaClass.simpleName != "BottomSheetTabs") return false
+        val parent = view.parent as? ViewGroup ?: return false
+        return parent.javaClass.simpleName == "ActionBarLayout"
+    }
+
+    /** Screen-space bottom edge — parent-relative [View.getBottom] lies for nested views. */
+    private fun screenBottom(view: View): Int {
+        return try {
+            val loc = IntArray(2)
+            view.getLocationOnScreen(loc)
+            loc[1] + view.height
+        } catch (_: Throwable) {
+            view.bottom
+        }
     }
 
     private fun isDenied(view: View): Boolean {
@@ -151,7 +177,8 @@ object TelegramBottomNavHook {
 
     private fun isBottomAnchored(view: View, root: ViewGroup): Boolean {
         if (view.height <= 0 && view.measuredHeight <= 0) return false
-        return view.bottom >= root.height * 0.85
+        val screenH = root.resources.displayMetrics.heightPixels
+        return screenBottom(view) >= screenH * 0.85
     }
 
     private fun isNavSized(view: View, root: ViewGroup, density: Float): Boolean {

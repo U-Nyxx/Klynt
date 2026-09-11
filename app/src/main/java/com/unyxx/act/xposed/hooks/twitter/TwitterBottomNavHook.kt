@@ -91,7 +91,7 @@ object TwitterBottomNavHook {
                     isBottomAnchored(v, root, 0.90) &&
                     isWideEnough(v, root)
             }
-            .maxByOrNull { it.bottom }
+            .maxByOrNull { screenBottom(it) }
         if (byClass != null) return wrap(byClass, pkg, log, prefs)
 
         // 2) Density-independent fallback: 56–120dp tall (Compose bars run
@@ -100,10 +100,21 @@ object TwitterBottomNavHook {
             .filter { v ->
                 isBottomAnchored(v, root, 0.80) && isNavSized(v, root, density)
             }
-            .maxByOrNull { it.bottom }
+            .maxByOrNull { screenBottom(it) }
         if (target != null) return wrap(target, pkg, log, prefs)
 
         return false
+    }
+
+    /** Screen-space bottom edge — parent-relative [View.getBottom] lies for nested views. */
+    private fun screenBottom(view: View): Int {
+        return try {
+            val loc = IntArray(2)
+            view.getLocationOnScreen(loc)
+            loc[1] + view.height
+        } catch (_: Throwable) {
+            view.bottom
+        }
     }
 
     /**
@@ -145,7 +156,8 @@ object TwitterBottomNavHook {
 
     private fun isBottomAnchored(view: View, root: ViewGroup, fraction: Double = 0.85): Boolean {
         if (view.height <= 0 && view.measuredHeight <= 0) return false
-        return view.bottom >= root.height * fraction
+        val screenH = root.resources.displayMetrics.heightPixels
+        return screenBottom(view) >= screenH * fraction
     }
 
     private fun isWideEnough(view: View, root: ViewGroup): Boolean {
