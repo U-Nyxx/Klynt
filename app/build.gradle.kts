@@ -7,8 +7,8 @@ val localProps = Properties().apply {
 
 plugins {
     id("com.android.application")
-    id("org.jetbrains.kotlin.plugin.compose") version "2.4.20"
-    id("org.jetbrains.kotlin.plugin.serialization") version "2.4.20"
+    id("org.jetbrains.kotlin.plugin.compose") version "2.2.10"
+    id("org.jetbrains.kotlin.plugin.serialization") version "2.2.10"
 }
 
 android {
@@ -46,13 +46,12 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    kotlinOptions {
-        jvmTarget = "17"
-        freeCompilerArgs += listOf(
-            "-opt-in=kotlin.RequiresOptIn",
-            "-opt-in=kotlinx.coroutines.ExperimentalCoroutinesApi",
-            "-opt-in=androidx.compose.material3.ExperimentalMaterial3Api"
-        )
+    kotlin {
+        compilerOptions {
+            optIn.add("kotlin.RequiresOptIn")
+            optIn.add("kotlinx.coroutines.ExperimentalCoroutinesApi")
+            optIn.add("androidx.compose.material3.ExperimentalMaterial3Api")
+        }
     }
 
     buildTypes {
@@ -77,7 +76,7 @@ android {
     }
 
     composeOptions {
-        kotlinCompilerExtensionVersion = "2.4.20"
+        kotlinCompilerExtensionVersion = "2.2.10"
     }
 }
 
