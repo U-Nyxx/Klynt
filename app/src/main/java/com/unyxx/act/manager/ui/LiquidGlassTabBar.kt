@@ -99,10 +99,20 @@ fun LiquidGlassTabBar(
         )
         // One shared pill tracking the page fractionally.
         BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-            TabPill(
-                tabsSize = tabs.size,
-                selectedPage = selectedPage,
-                maxWidth = maxWidth
+            val indicatorWidth = 68.dp
+            val targetX = maxWidth * (selectedPage + 0.5f) / tabs.size - indicatorWidth / 2
+            val pillX by animateDpAsState(
+                targetValue = targetX,
+                animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+                label = "tab_pill"
+            )
+            Box(
+                modifier = Modifier
+                    .offset(x = pillX)
+                    .width(indicatorWidth)
+                    .height(56.dp)
+                    .align(Alignment.CenterStart)
+                    .background(Color.White.copy(alpha = 0.14f), RoundedCornerShape(50))
             )
         }
         Row(
@@ -149,25 +159,6 @@ fun LiquidGlassTabBar(
             }
         }
     }
-}
-
-@Composable
-private fun TabPill(tabsSize: Int, selectedPage: Float, maxWidth: Dp) {
-    val indicatorWidth = 68.dp
-    val targetX = maxWidth * (selectedPage + 0.5f) / tabsSize - indicatorWidth / 2
-    val pillX by animateDpAsState(
-        targetValue = targetX,
-        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
-        label = "tab_pill"
-    )
-    Box(
-        modifier = Modifier
-            .offset(x = pillX)
-            .width(indicatorWidth)
-            .height(56.dp)
-            .align(Alignment.CenterStart)
-            .background(Color.White.copy(alpha = 0.14f), RoundedCornerShape(50))
-    )
 }
 
 data class TabItem(
