@@ -2,7 +2,7 @@
   <img src="https://img.shields.io/github/v/release/U-Nyxx/Klynt?style=flat&color=6C63FF" alt="Release">
   <img src="https://img.shields.io/github/downloads/U-Nyxx/Klynt/total?style=flat&color=6C63FF" alt="Downloads">
   <img src="https://img.shields.io/badge/API-30%2B-00D4AA?style=flat" alt="API">
-  <img src="https://img.shields.io/badge/Xposed-54%2B-FF6B35?style=flat" alt="Xposed">
+  <img src="https://img.shields.io/badge/libxposed-101%2F102-FF6B35?style=flat" alt="libxposed">
   <img src="https://img.shields.io/github/license/U-Nyxx/Klynt?style=flat&color=6C63FF" alt="License">
 </p>
 
@@ -10,60 +10,44 @@
 
 <p align="center">
   <b>Liquid Glass Floating UI for Android</b><br>
-  <sub>Xposed module — iOS-inspired glass effect on 30+ apps</sub>
+  <sub>LSPosed module — iOS-inspired glass pill on Telegram + Twitter/X bottom bars</sub>
 </p>
 
 ---
 
-> KLYNT hooks into target apps and replaces their standard bottom navigation bar with a **floating, translucent Liquid Glass pill**. No privacy hooks. No feature modifications. Just UI.
+> KLYNT hooks into target apps and overlays their bottom navigation bar with a **floating, translucent Liquid Glass pill**. Visual-only: no traffic touched, no messages read, no API calls. No privacy hooks. No feature modifications. Just UI.
 
 ## Features
 
 - **Glass Engine** — Real-time backdrop blur (AGSL + RenderEffect + NEON)
-- **Floating Pill** — Translucent navigation bar with adaptive tint
-- **30+ Apps** — Telegram (20+ variants), WhatsApp, YouTube, Instagram, Twitter/X, TikTok, Reddit
-- **SOC-Aware** — Detects Snapdragon/Dimensity/Exynos/Tensor at runtime
+- **Floating Pill** — Translucent navigation pill with adaptive tint
+- **Reactive Hooks** — Toggles apply without restarting the target app
+- **SOC-Aware** — Detects Snapdragon/Dimensity/Exynos/Tensor at runtime (auto quality, hidden from UI)
 - **Per-App Toggle** — Enable/disable glass effect individually
-- **Thermal Scaling** — Exynos devices auto-reduce intensity under load
-- **All Rounder** — Works on LSPosed and legacy Xposed (API 54+)
+- **In-App Update** — Check GitHub releases and install from inside the manager
 
 ## Supported Apps
 
 | Ecosystem | Apps |
 |-----------|------|
-| **Telegram** | Official, Beta, Nekogram, Nagram, NekoX, Cherrygram, Forkgram, Octogram, Mercurygram, Nullgram, iMe, exteraGram, Telega, Yukigram, Plus, Turrit, Web |
-| **WhatsApp** | WhatsApp, WhatsApp Business |
-| **YouTube** | YouTube, YouTube Music |
-| **Instagram** | Instagram |
+| **Telegram** | Official, Beta, Web, Plus, Nekogram (PS + FOSS), NekoX, Nagram, NagramX, Cherrygram, Forkgram (+Beta/Classic), Turrit, Octogram, Mercurygram, Nullgram, iMe (+Web), exteraGram, Telega, Yukigram, Nicegram, TGConnect |
 | **Twitter/X** | Twitter/X |
-| **TikTok** | TikTok, Trill |
-| **Reddit** | Reddit |
 
-> Telegram X and Threads — coming v1.1
+> Root required (LSPosed + libxposed API 101+). Non-root (LSPatch) is not supported yet.
 
 ## Requirements
 
 - Android 11+ (API 30)
-- One of: LSPosed or legacy Xposed Framework (API 54+)
+- Root + LSPosed with libxposed API 101 or newer
+- `api101` APK works on 101 and 102 frameworks; `api102` APK needs a 102 framework (hot-reload)
 
 ## Installation
 
-### Root — LSPosed
-
-1. Download `klynt-v1.0.0-ArJk.apk` from [Releases](https://github.com/U-Nyxx/Klynt/releases/latest)
+1. Download `klynt-<ver>-api101-ArJk.apk` (any API 101+ framework) or `klynt-<ver>-api102-ArJk.apk` (newest LSPosed, hot-reload) from [Releases](https://github.com/U-Nyxx/Klynt/releases/latest)
 2. Install the APK
 3. Open **LSPosed Manager** → **Modules**
-4. Enable **KLYNT** → select target apps
+4. Enable **KLYNT** → tick target apps (or tap “Aktifkan scope” inside the manager)
 5. Force stop target app → reopen → glass nav appears
-
-### Root — Legacy Xposed
-
-1. Download `klynt-v1.0.0-ArJk.apk` from [Releases](https://github.com/U-Nyxx/Klynt/releases/latest)
-2. Install the APK
-3. Open **Xposed Installer** → **Modules**
-4. Enable **KLYNT**
-5. Reboot device
-6. Force stop target app → reopen → glass nav appears
 
 ## Build
 
@@ -73,20 +57,20 @@ cd Klynt
 ./gradlew assembleDebug
 ```
 
-Requires: JDK 17, Android SDK 35, Kotlin 2.0, Compose BOM 2024.02
+Requires: JDK 17, Android SDK 36, Kotlin 2.2, Compose BOM 2024.08
 
 ## FAQ
 
 <details>
-<summary><b>Module not showing in Xposed/LSPosed?</b></summary>
+<summary><b>Module not showing in LSPosed?</b></summary>
 
-Ensure Xposed API 54+. Force stop the manager and reopen.
+Needs LSPosed with libxposed API 101+. Update LSPosed, then force stop the manager and reopen.
 </details>
 
 <details>
 <summary><b>Glass effect not appearing?</b></summary>
 
-Force stop target app and reopen. Check module scope includes the target app.
+Check Home checklist in the manager: framework connected, target in scope, target installed. Then force stop the target app and reopen. Copy diagnostics from Settings if reporting a bug.
 </details>
 
 <details>
@@ -98,13 +82,13 @@ Normal for side-loaded APKs. Tap "Install anyway" or disable Play Protect tempor
 <details>
 <summary><b>Device not supported?</b></summary>
 
-KLYNT falls back to software rendering on unsupported SoCs. Performance may vary.
+KLYNT falls back to frosted blur on weaker SoCs. Performance may vary.
 </details>
 
 ## Credits
 
 - [QWEA0/Liquid-Glass-Android](https://github.com/QWEA0/Liquid-Glass-Android) — Glass blur engine
-- [Xposed Framework](https://github.com/rovo89/XposedBridge) — Module framework
+- [LSPosed](https://github.com/LSPosed/LSPosed) + [libxposed](https://github.com/libxposed/api) — Module framework
 - [Material Design 3](https://m3.material.io/) — UI components
 
 ## License

@@ -22,8 +22,16 @@ android {
         applicationId = "com.unyxx.act"
         minSdk = 30
         targetSdk = 35
-        versionCode = 2
-        versionName = "1.0.0"
+        versionCode = 3
+        versionName = "1.0.1"
+    }
+
+    // One codebase, two Xposed generations. api101 runs on 101+ runtimes;
+    // api102 adds hot-reload and needs a 102 framework.
+    flavorDimensions += "xposed"
+    productFlavors {
+        create("api101") { dimension = "xposed" }
+        create("api102") { dimension = "xposed" }
     }
 
     signingConfigs {
@@ -76,10 +84,11 @@ android {
 }
 
 dependencies {
-    // Xposed API (libxposed 101, modern)
-    compileOnly("io.github.libxposed:api:101.0.0")
-    // Xposed Service (module-app side: scope + remote prefs via framework binder)
-    implementation("io.github.libxposed:service:101.0.0")
+    // Xposed API + Service, per flavor generation.
+    api101CompileOnly("io.github.libxposed:api:101.0.0")
+    api101Implementation("io.github.libxposed:service:101.0.0")
+    api102CompileOnly("io.github.libxposed:api:102.0.0")
+    api102Implementation("io.github.libxposed:service:102.0.0")
 
     // Liquid Glass (JitPack)
     implementation("com.github.QWEA0:liquidglass:v2.0.8")

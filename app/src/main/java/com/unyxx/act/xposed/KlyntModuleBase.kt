@@ -8,25 +8,32 @@ import com.unyxx.act.xposed.hooks.twitter.TwitterBottomNavHook
 import com.unyxx.act.xposed.hooks.twitter.TwitterVariants
 import com.unyxx.act.xposed.prefs.PrefsSchema
 import com.unyxx.act.xposed.prefs.RemotePrefs
+import io.github.libxposed.api.XposedInterface
 import io.github.libxposed.api.XposedModule
 import io.github.libxposed.api.XposedModuleInterface.ModuleLoadedParam
 import io.github.libxposed.api.XposedModuleInterface.PackageLoadedParam
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
- * KLYNT Xposed entry point (libxposed API 101).
+ * Shared KLYNT hook logic for all API flavors.
  *
  * A single `Instrumentation.callActivityOnResume` hook per target process
  * covers every activity (late enables, recreations, all screens) instead
  * of one-shot `onCreate` hooks. Discovery itself is idempotent.
+ *
+ * Flavor entries (`api101`, `api102`) subclass this and only differ in
+ * lifecycle extras (e.g. hot-reload on 102).
  */
-class KlyntModule : XposedModule() {
+abstract class KlyntModuleBase : XposedModule() {
 
     companion object {
         const val TAG = "KLYNT"
     }
 
     private val resumeHookInstalled = AtomicBoolean(false)
+
+    /** All hooks installed by this generation (used by 102 hot-reload retire). */
+    protected val hookHandles = mutableListOf<XposedInterface.HookHandle>()
 
     override fun onModuleLoaded(param: ModuleLoadedParam) {
         log(Log.INFO, TAG, "onModuleLoaded: ${param.processName} framework=$frameworkName api=$apiVersion")
@@ -49,18 +56,20 @@ class KlyntModule : XposedModule() {
             val resume = instrumentation.getDeclaredMethod(
                 "callActivityOnResume", Activity::class.java
             )
-            hook(resume).intercept { chain ->
-                val result = chain.proceed()
-                try {
-                    val activity = chain.args.getOrNull(0) as? Activity
-                    if (activity != null && activity.packageName == pkg) {
-                        onTargetActivityResumed(activity, pkg, prefs)
+            hookHandles.add(
+                hook(resume).intercept { chain ->
+                    val result = chain.proceed()
+                    try {
+                        val activity = chain.args.getOrNull(0) as? Activity
+                        if (activity != null && activity.packageName == pkg) {
+                            onTargetActivityResumed(activity, pkg, prefs)
+                        }
+                    } catch (t: Throwable) {
+                        log(Log.WARN, TAG, "resume dispatch failed: ${t.message}")
                     }
-                } catch (t: Throwable) {
-                    log(Log.WARN, TAG, "resume dispatch failed: ${t.message}")
+                    result
                 }
-                result
-            }
+            )
             log(Log.INFO, TAG, "Resume hook installed for $pkg")
         } catch (t: Throwable) {
             log(Log.ERROR, TAG, "Hook install failed for $pkg: ${t.message}")
