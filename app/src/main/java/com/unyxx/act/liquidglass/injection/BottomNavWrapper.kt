@@ -86,10 +86,11 @@ class BottomNavWrapper @JvmOverloads constructor(
     fun originalView(): View? = original
 
     /**
+     * @param intensity 0..1 lens strength multiplier (per-app setting).
      * @return the wrapper now occupying the original view's slot,
      * or the original view itself when wrapping is impossible.
      */
-    fun wrap(originalView: View, pkg: String): View {
+    fun wrap(originalView: View, pkg: String, intensity: Float = 1f): View {
         val key = injectionKey(pkg)
         if (isInjected(originalView, pkg)) return (originalView.parent as? View) ?: originalView
 
@@ -106,6 +107,11 @@ class BottomNavWrapper @JvmOverloads constructor(
         glass = KlyntLiquidGlassView(context).apply {
             isClickable = false
             isFocusable = false
+            configure(
+                com.unyxx.act.util.SocDetector.detect(),
+                context,
+                intensity.coerceIn(0f, 1f)
+            )
             attachToReference(originalView)
         }
         addView(glass, 1, ViewGroup.LayoutParams(params.width, params.height))

@@ -27,12 +27,17 @@ class KlyntLiquidGlassView @JvmOverloads constructor(
         configure(SocDetector.detect(), context)
     }
 
-    /** Applies a [SocDetector.Profile]; callable again if conditions change. */
-    fun configure(profile: SocDetector.Profile, context: Context) {
+    /**
+     * Applies a [SocDetector.Profile]; callable again if conditions change.
+     *
+     * @param intensity 0..1 user multiplier on lens strength (per-app).
+     */
+    fun configure(profile: SocDetector.Profile, context: Context, intensity: Float = 1f) {
         val fallback = profile.frostedFallback || isReducedMotion(context)
+        val k = intensity.coerceIn(0f, 1f)
         material = GlassMaterial.REGULAR
         cornerRadius = 999f
-        if (fallback) {
+        if (fallback || k <= 0f) {
             // Frosted fallback: blur only, no lens — safe on Mali
             // mid-range, battery saver, reduced motion and high contrast.
             refractionHeight = 0f
@@ -41,9 +46,9 @@ class KlyntLiquidGlassView @JvmOverloads constructor(
             enableSensorHighlight = false
             enableAdaptiveTint = false
         } else {
-            refractionHeight = profile.refractionDp.dpToPx(context)
+            refractionHeight = profile.refractionDp.dpToPx(context) * k
             bevelWidth = profile.bevelDp.dpToPx(context)
-            dispersionStrength = profile.dispersion
+            dispersionStrength = profile.dispersion * k
             enableSensorHighlight = false
             enableAdaptiveTint = true
         }

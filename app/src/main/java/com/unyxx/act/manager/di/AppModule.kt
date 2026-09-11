@@ -152,6 +152,20 @@ object ServiceLocator {
         logEvent("$packageName ${feature.name} ${if (enabled) "enabled" else "disabled"}")
     }
 
+    /** Per-app glass intensity 0..1, mirrored to hooks. */
+    fun getGlassIntensity(packageName: String): Float {
+        val key = PrefsSchema.intensityKey(packageName)
+        return prefs?.getFloat(key, 1f) ?: 1f
+    }
+
+    fun setGlassIntensity(packageName: String, intensity: Float) {
+        val clamped = intensity.coerceIn(0f, 1f)
+        val key = PrefsSchema.intensityKey(packageName)
+        prefs?.edit()?.putFloat(key, clamped)?.apply()
+        writeRemoteFloat(key, clamped)
+        Logger.d { "Set intensity $key = $clamped" }
+    }
+
     /**
      * Mirrors a boolean into framework Remote Preferences so hooked apps
      * observe it via `getRemotePreferences`. Silent when the service is
@@ -163,6 +177,18 @@ object ServiceLocator {
                 ?.getRemotePreferences(PrefsSchema.PREFS_FILE)
                 ?.edit()
                 ?.putBoolean(key, value)
+                ?.apply()
+        } catch (_: Throwable) {
+            // Service dead — local write already persisted.
+        }
+    }
+
+    private fun writeRemoteFloat(key: String, value: Float) {
+        try {
+            KlyntApplication.xposedService
+                ?.getRemotePreferences(PrefsSchema.PREFS_FILE)
+                ?.edit()
+                ?.putFloat(key, value)
                 ?.apply()
         } catch (_: Throwable) {
             // Service dead — local write already persisted.

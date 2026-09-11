@@ -51,7 +51,7 @@ object TelegramBottomNavHook {
             BottomNavWrapper.unwrapAll(decorView, packageName)
             return
         }
-        BottomNavDiscovery.discover(decorView) { tryWrap(decorView, packageName, log) }
+        BottomNavDiscovery.discover(decorView) { tryWrap(decorView, packageName, prefs, log) }
     }
 
     private fun isActiveForApp(prefs: RemotePrefs, packageName: String): Boolean {
@@ -59,7 +59,7 @@ object TelegramBottomNavHook {
         return prefs.isFeatureEnabled(packageName, PrefsSchema.Feature.LIQUID_GLASS_ENABLED)
     }
 
-    private fun tryWrap(root: ViewGroup, pkg: String, log: (String) -> Unit): Boolean {
+    private fun tryWrap(root: ViewGroup, pkg: String, prefs: RemotePrefs, log: (String) -> Unit): Boolean {
         if (root.width <= 0 || root.height <= 0) return false
         // Tablets/foldables use a side rail instead of a bottom bar —
         // wrapping here would only break layout, so stand down loudly.
@@ -92,14 +92,14 @@ object TelegramBottomNavHook {
                     isBottomAnchored(v, root)
             }
             .maxByOrNull { it.bottom }
-        if (byClass != null) return wrap(byClass, pkg, log)
+        if (byClass != null) return wrap(byClass, pkg, log, prefs)
 
         // 2) Density-independent fallback: 48–80dp tall, near-full width,
         //    bottom edge inside the lower 15% of the screen.
         val target = candidates
             .filter { v -> isBottomAnchored(v, root) && isNavSized(v, root, density) }
             .maxByOrNull { it.bottom }
-        if (target != null) return wrap(target, pkg, log)
+        if (target != null) return wrap(target, pkg, log, prefs)
 
         return false
     }
@@ -115,9 +115,15 @@ object TelegramBottomNavHook {
         return false
     }
 
-    private fun wrap(view: View, pkg: String, log: (String) -> Unit): Boolean {
+    private fun wrap(
+        view: View,
+        pkg: String,
+        log: (String) -> Unit,
+        prefs: RemotePrefs? = null
+    ): Boolean {
         if (BottomNavWrapper.isInjected(view, pkg)) return true
-        BottomNavWrapper(view.context).wrap(view, pkg)
+        val intensity = prefs?.getFloat(PrefsSchema.intensityKey(pkg), 1f) ?: 1f
+        BottomNavWrapper(view.context).wrap(view, pkg, intensity)
         log("Injected Liquid Glass into $pkg at ${view.javaClass.name} (target ${targetVersion(view, pkg)})")
         return true
     }

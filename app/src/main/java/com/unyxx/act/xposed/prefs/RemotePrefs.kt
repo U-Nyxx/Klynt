@@ -52,6 +52,9 @@ class RemotePrefs private constructor(
     fun getInt(key: String, default: Int = 0): Int =
         prefs.getInt(key, default)
 
+    fun getFloat(key: String, default: Float): Float =
+        prefs.getFloat(key, default)
+
     fun observeBoolean(key: String): StateFlow<Boolean> {
         val initial = prefs.getBoolean(key, false)
         val stateFlow = MutableStateFlow(initial)

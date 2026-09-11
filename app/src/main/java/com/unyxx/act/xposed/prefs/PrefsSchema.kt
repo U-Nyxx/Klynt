@@ -17,6 +17,10 @@ object PrefsSchema {
     fun appKey(packageName: String, feature: Feature): String =
         "$APP_PREFIX$packageName:${feature.name}"
 
+    /** Per-app glass intensity 0..1 (default 1 = full SoC profile). */
+    fun intensityKey(packageName: String): String =
+        "$APP_PREFIX$packageName:GLASS_INTENSITY"
+
     enum class Feature(val defaultValue: Boolean) {
         LIQUID_GLASS_ENABLED(true),
         BLUR_ENABLED(false)

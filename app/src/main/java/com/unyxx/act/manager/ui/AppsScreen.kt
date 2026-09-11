@@ -15,22 +15,27 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.MailOutline
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -109,7 +114,8 @@ fun AppsScreen(viewModel: AppsViewModel) {
                     icon = Icons.Default.Email,
                     apps = uiState.apps.filter { app -> app.family == AppFamily.TELEGRAM },
                     onToggle = { pkg, enabled -> viewModel.toggleLiquidGlass(pkg, enabled) },
-                    onRequestScope = { pkg -> viewModel.requestScope(pkg) }
+                    onRequestScope = { pkg -> viewModel.requestScope(pkg) },
+                    onIntensity = { pkg, v -> viewModel.setGlassIntensity(pkg, v) }
                 )
             }
 
@@ -119,7 +125,8 @@ fun AppsScreen(viewModel: AppsViewModel) {
                     icon = Icons.Default.MailOutline,
                     apps = uiState.apps.filter { app -> app.packageName == "com.twitter.android" },
                     onToggle = { pkg, enabled -> viewModel.toggleLiquidGlass(pkg, enabled) },
-                    onRequestScope = { pkg -> viewModel.requestScope(pkg) }
+                    onRequestScope = { pkg -> viewModel.requestScope(pkg) },
+                    onIntensity = { pkg, v -> viewModel.setGlassIntensity(pkg, v) }
                 )
             }
         }
@@ -132,7 +139,8 @@ fun AppFamilySection(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     apps: List<com.unyxx.act.manager.viewmodel.AppUiState>,
     onToggle: (String, Boolean) -> Unit,
-    onRequestScope: (String) -> Unit
+    onRequestScope: (String) -> Unit,
+    onIntensity: (String, Float) -> Unit
 ) {
     if (apps.isEmpty()) return
 
@@ -157,7 +165,8 @@ fun AppFamilySection(
                 AppRow(
                     app = app,
                     onToggle = onToggle,
-                    onRequestScope = onRequestScope
+                    onRequestScope = onRequestScope,
+                    onIntensity = onIntensity
                 )
             }
         }
@@ -168,8 +177,10 @@ fun AppFamilySection(
 fun AppRow(
     app: com.unyxx.act.manager.viewmodel.AppUiState,
     onToggle: (String, Boolean) -> Unit,
-    onRequestScope: (String) -> Unit
+    onRequestScope: (String) -> Unit,
+    onIntensity: (String, Float) -> Unit = { _, _ -> }
 ) {
+    var expanded by remember(app.packageName) { mutableStateOf(false) }
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
@@ -243,10 +254,31 @@ fun AppRow(
                         Text("Aktifkan scope")
                     }
                 }
-                Switch(
-                    checked = app.liquidGlassEnabled,
-                    onCheckedChange = { enabled -> onToggle(app.packageName, enabled) }
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (expanded) {
+                        Slider(
+                            value = app.intensity,
+                            onValueChange = { v -> onIntensity(app.packageName, v) },
+                            valueRange = 0f..1f,
+                            modifier = Modifier.width(110.dp)
+                        )
+                    }
+                    IconButton(onClick = { expanded = !expanded }) {
+                        Icon(
+                            imageVector = Icons.Filled.Tune,
+                            contentDescription = "Intensitas kaca",
+                            tint = if (expanded) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            }
+                        )
+                    }
+                    Switch(
+                        checked = app.liquidGlassEnabled,
+                        onCheckedChange = { enabled -> onToggle(app.packageName, enabled) }
+                    )
+                }
             }
         }
     }

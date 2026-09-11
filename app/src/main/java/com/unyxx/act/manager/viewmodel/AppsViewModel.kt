@@ -44,7 +44,8 @@ class AppsViewModel(
                     family = info.family,
                     liquidGlassEnabled = liquidGlassEnabled,
                     isScopeGranted = pkg in scope,
-                    version = info.version
+                    version = info.version,
+                    intensity = ServiceLocator.getGlassIntensity(pkg)
                 )
             }
             _uiState.value = _uiState.value.copy(apps = appsList)
@@ -72,6 +73,17 @@ class AppsViewModel(
         )
     }
 
+    fun setGlassIntensity(packageName: String, intensity: Float) {
+        ServiceLocator.setGlassIntensity(packageName, intensity)
+        _uiState.value = _uiState.value.copy(
+            apps = _uiState.value.apps.map { app ->
+                if (app.packageName == packageName) {
+                    app.copy(intensity = intensity.coerceIn(0f, 1f))
+                } else app
+            }
+        )
+    }
+
     fun refresh() {
         loadApps()
     }
@@ -88,5 +100,6 @@ data class AppUiState(
     val family: AppFamily,
     val liquidGlassEnabled: Boolean,
     val isScopeGranted: Boolean = false,
-    val version: String = "?"
+    val version: String = "?",
+    val intensity: Float = 1f
 )
