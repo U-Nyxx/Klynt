@@ -23,6 +23,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -107,7 +108,8 @@ fun AppsScreen(viewModel: AppsViewModel) {
                     title = "Telegram Ecosystem",
                     icon = Icons.Default.Email,
                     apps = uiState.apps.filter { app -> app.family == AppFamily.TELEGRAM },
-                    onToggle = { pkg, enabled -> viewModel.toggleLiquidGlass(pkg, enabled) }
+                    onToggle = { pkg, enabled -> viewModel.toggleLiquidGlass(pkg, enabled) },
+                    onRequestScope = { pkg -> viewModel.requestScope(pkg) }
                 )
             }
 
@@ -116,7 +118,8 @@ fun AppsScreen(viewModel: AppsViewModel) {
                     title = "Twitter/X",
                     icon = Icons.Default.MailOutline,
                     apps = uiState.apps.filter { app -> app.packageName == "com.twitter.android" },
-                    onToggle = { pkg, enabled -> viewModel.toggleLiquidGlass(pkg, enabled) }
+                    onToggle = { pkg, enabled -> viewModel.toggleLiquidGlass(pkg, enabled) },
+                    onRequestScope = { pkg -> viewModel.requestScope(pkg) }
                 )
             }
         }
@@ -128,7 +131,8 @@ fun AppFamilySection(
     title: String,
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     apps: List<com.unyxx.act.manager.viewmodel.AppUiState>,
-    onToggle: (String, Boolean) -> Unit
+    onToggle: (String, Boolean) -> Unit,
+    onRequestScope: (String) -> Unit
 ) {
     if (apps.isEmpty()) return
 
@@ -152,7 +156,8 @@ fun AppFamilySection(
             apps.forEach { app ->
                 AppRow(
                     app = app,
-                    onToggle = onToggle
+                    onToggle = onToggle,
+                    onRequestScope = onRequestScope
                 )
             }
         }
@@ -162,7 +167,8 @@ fun AppFamilySection(
 @Composable
 fun AppRow(
     app: com.unyxx.act.manager.viewmodel.AppUiState,
-    onToggle: (String, Boolean) -> Unit
+    onToggle: (String, Boolean) -> Unit,
+    onRequestScope: (String) -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -220,10 +226,17 @@ fun AppRow(
                 }
             }
 
-            Switch(
-                checked = app.liquidGlassEnabled,
-                onCheckedChange = { enabled -> onToggle(app.packageName, enabled) }
-            )
+            Column(horizontalAlignment = Alignment.End) {
+                if (!app.isScopeGranted) {
+                    TextButton(onClick = { onRequestScope(app.packageName) }) {
+                        Text("Aktifkan scope")
+                    }
+                }
+                Switch(
+                    checked = app.liquidGlassEnabled,
+                    onCheckedChange = { enabled -> onToggle(app.packageName, enabled) }
+                )
+            }
         }
     }
 }

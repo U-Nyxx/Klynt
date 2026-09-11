@@ -30,6 +30,7 @@ class AppsViewModel(
     private fun loadApps() {
         viewModelScope.launch(Dispatchers.IO) {
             val appsMap = scopeManager.getInstallableTargetApps()
+            val scope = ServiceLocator.getServiceScope()
             val appsList = appsMap.entries.map { entry ->
                 val pkg = entry.key
                 val info = entry.value
@@ -41,10 +42,21 @@ class AppsViewModel(
                     label = info.label,
                     icon = icon,
                     family = info.family,
-                    liquidGlassEnabled = liquidGlassEnabled
+                    liquidGlassEnabled = liquidGlassEnabled,
+                    isScopeGranted = pkg in scope
                 )
             }
             _uiState.value = _uiState.value.copy(apps = appsList)
+        }
+    }
+
+    /** Asks LSPosed to enable [packageName], then refreshes scope state. */
+    fun requestScope(packageName: String) {
+        ServiceLocator.requestScope(packageName) { approved, message ->
+            viewModelScope.launch(Dispatchers.Main) {
+                android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_LONG).show()
+                if (approved) refresh()
+            }
         }
     }
 
@@ -73,5 +85,6 @@ data class AppUiState(
     val label: String,
     val icon: android.graphics.drawable.Drawable?,
     val family: AppFamily,
-    val liquidGlassEnabled: Boolean
+    val liquidGlassEnabled: Boolean,
+    val isScopeGranted: Boolean = false
 )

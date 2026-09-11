@@ -74,6 +74,46 @@ object ServiceLocator {
         return p.getBoolean(PrefsSchema.MODULE_ACTIVE, false)
     }
 
+    /** Packages currently enabled in LSPosed scope (empty when service is down). */
+    fun getServiceScope(): Set<String> {
+        return try {
+            KlyntApplication.xposedService?.scope?.toSet() ?: emptySet()
+        } catch (_: Throwable) {
+            emptySet()
+        }
+    }
+
+    /**
+     * Asks the framework to enable [packageName] in scope.
+     * Result arrives async via [onResult]; approved grants still need
+     * a target restart to take effect.
+     */
+    fun requestScope(packageName: String, onResult: (approved: Boolean, message: String) -> Unit) {
+        val service = KlyntApplication.xposedService
+        if (service == null) {
+            onResult(false, "Framework tidak terhubung")
+            return
+        }
+        try {
+            service.requestScope(
+                listOf(packageName),
+                object : io.github.libxposed.service.XposedService.OnScopeEventListener {
+                    override fun onScopeRequestApproved(approved: List<String>) {
+                        logEvent("Scope disetujui: $packageName")
+                        onResult(true, "Scope disetujui — restart target")
+                    }
+
+                    override fun onScopeRequestFailed(message: String) {
+                        logEvent("Scope ditolak: $packageName ($message)")
+                        onResult(false, message)
+                    }
+                }
+            )
+        } catch (t: Throwable) {
+            onResult(false, t.message ?: "gagal")
+        }
+    }
+
     // Global Feature Toggles
     fun isGlobalEnabled(): Boolean {
         val p = prefs ?: return true
