@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Klynt</string>
+    <string name="tab_home">Beranda</string>
+    <string name="tab_apps">Aplikasi</string>
+    <string name="tab_settings">Setelan</string>
+    <string name="tab_logs">Log</string>
+</resources>
