@@ -27,6 +27,8 @@ import androidx.compose.material.icons.outlined.Article
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Menu
 import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -57,16 +59,19 @@ import com.unyxx.act.R
 fun LiquidGlassTabBar(
     currentRoute: String,
     onTabSelected: (String) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    /** Enabled-target count shown as a badge on Apps; hidden when service is down. */
+    appsBadge: Int = 0,
+    showLogs: Boolean = true
 ) {
     val haptic = LocalHapticFeedback.current
     val capsule = RoundedCornerShape(50)
     val tabs = listOf(
         TabItem(stringResource(R.string.tab_home), "home", Icons.Filled.Home, Icons.Outlined.Home),
-        TabItem(stringResource(R.string.tab_apps), "apps", Icons.Filled.Menu, Icons.Outlined.Menu),
+        TabItem(stringResource(R.string.tab_apps), "apps", Icons.Filled.Menu, Icons.Outlined.Menu, appsBadge),
         TabItem(stringResource(R.string.tab_settings), "settings", Icons.Filled.Settings, Icons.Outlined.Settings),
         TabItem(stringResource(R.string.tab_logs), "logs", Icons.Filled.Article, Icons.Outlined.Article)
-    )
+    ).filter { it.route != "logs" || showLogs }
     val selectedIndex = tabs.indexOfFirst { it.route == currentRoute }.coerceAtLeast(0)
     val selectedLavender = Color(0xFFD7C6FF)
     val idleWhite = Color.White.copy(alpha = 0.87f)
@@ -129,13 +134,21 @@ fun LiquidGlassTabBar(
                         },
                         modifier = Modifier.size(48.dp)
                     ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(
-                                imageVector = if (isSelected) item.activeIcon else item.icon,
-                                contentDescription = item.label,
-                                tint = if (isSelected) selectedLavender else idleWhite,
-                                modifier = Modifier.size(24.dp)
-                            )
+                        Column(horizontalAlignment = Alignment.CenterHorizontally                        ) {
+                            BadgedBox(
+                                badge = {
+                                    if (item.badge > 0) {
+                                        Badge { Text(item.badge.toString()) }
+                                    }
+                                }
+                            ) {
+                                Icon(
+                                    imageVector = if (isSelected) item.activeIcon else item.icon,
+                                    contentDescription = item.label,
+                                    tint = if (isSelected) selectedLavender else idleWhite,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
                             Text(
                                 item.label,
                                 fontSize = 11.sp,
@@ -153,5 +166,6 @@ data class TabItem(
     val label: String,
     val route: String,
     val activeIcon: ImageVector,
-    val icon: ImageVector
+    val icon: ImageVector,
+    val badge: Int = 0
 )

@@ -43,7 +43,8 @@ class AppsViewModel(
                     icon = icon,
                     family = info.family,
                     liquidGlassEnabled = liquidGlassEnabled,
-                    isScopeGranted = pkg in scope
+                    isScopeGranted = pkg in scope,
+                    version = info.version
                 )
             }
             _uiState.value = _uiState.value.copy(apps = appsList)
@@ -86,5 +87,6 @@ data class AppUiState(
     val icon: android.graphics.drawable.Drawable?,
     val family: AppFamily,
     val liquidGlassEnabled: Boolean,
-    val isScopeGranted: Boolean = false
+    val isScopeGranted: Boolean = false,
+    val version: String = "?"
 )

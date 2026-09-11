@@ -20,7 +20,8 @@ class ScopeManager(private val context: Context) {
                     packageName = pkg,
                     label = pm.getApplicationLabel(info).toString(),
                     icon = pm.getApplicationIcon(info),
-                    family = AppFamily.TELEGRAM
+                    family = AppFamily.TELEGRAM,
+                    version = versionOf(pm, pkg)
                 )
             } catch (_: PackageManager.NameNotFoundException) {}
         }
@@ -33,7 +34,8 @@ class ScopeManager(private val context: Context) {
                 packageName = pkg,
                 label = pm.getApplicationLabel(info).toString(),
                 icon = pm.getApplicationIcon(info),
-                family = AppFamily.TWITTER
+                family = AppFamily.TWITTER,
+                version = versionOf(pm, pkg)
             )
         } catch (_: PackageManager.NameNotFoundException) {}
 
@@ -55,13 +57,23 @@ class ScopeManager(private val context: Context) {
     fun syncTelegramScope(xposedService: Any?) {
         Logger.d { "Scope sync requested" }
     }
+
+    /** Installed target version for diagnostics; "?" when unreadable. */
+    private fun versionOf(pm: PackageManager, pkg: String): String {
+        return try {
+            pm.getPackageInfo(pkg, 0).versionName ?: "?"
+        } catch (_: PackageManager.NameNotFoundException) {
+            "?"
+        }
+    }
 }
 
 data class TargetAppInfo(
     val packageName: String,
     val label: String,
     val icon: android.graphics.drawable.Drawable,
-    val family: AppFamily
+    val family: AppFamily,
+    val version: String = "?"
 )
 
 enum class AppFamily {

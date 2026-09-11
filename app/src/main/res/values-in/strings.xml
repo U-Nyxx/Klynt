@@ -5,4 +5,13 @@
     <string name="tab_apps">Aplikasi</string>
     <string name="tab_settings">Setelan</string>
     <string name="tab_logs">Log</string>
+    <string name="setup_title">Daftar setup</string>
+    <string name="check_binder">Framework terhubung</string>
+    <string name="check_binder_hint">Buka LSPosed manager</string>
+    <string name="check_scope">Target masuk scope</string>
+    <string name="check_scope_hint">Centang target di LSPosed → Modul → KLYNT</string>
+    <string name="check_installed">Target terinstal</string>
+    <string name="check_installed_hint">Instal Telegram / X dulu</string>
+    <string name="check_restart">Restart target</string>
+    <string name="check_restart_hint">Force-stop lalu buka lagi tiap ganti setting</string>
 </resources>

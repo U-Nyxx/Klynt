@@ -36,11 +36,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.unyxx.act.R
 import com.unyxx.act.manager.di.ServiceLocator
+import com.unyxx.act.manager.viewmodel.CheckKey
 import com.unyxx.act.manager.viewmodel.HomeViewModel
+import com.unyxx.act.manager.viewmodel.SetupCheck
 
 /** Landing dashboard: identity, module status, target stats. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -48,6 +52,7 @@ import com.unyxx.act.manager.viewmodel.HomeViewModel
 fun HomeScreen(viewModel: HomeViewModel) {
     val stats by viewModel.stats.collectAsState()
     val isModuleActive by viewModel.isModuleActive.collectAsState()
+    val checks by viewModel.checks.collectAsState()
     val context = LocalContext.current
     val appVersion = remember {
         try {
@@ -80,6 +85,9 @@ fun HomeScreen(viewModel: HomeViewModel) {
             }
             item {
                 StatusCard(isModuleActive = isModuleActive)
+            }
+            item {
+                SetupChecklistCard(checks = checks)
             }
             item {
                 StatsCard(stats = stats)
@@ -187,6 +195,64 @@ private fun StatusCard(isModuleActive: Boolean) {
                         MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.8f)
                     }
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SetupChecklistCard(checks: List<SetupCheck>) {
+    if (checks.isEmpty()) return
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+        )
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                stringResource(R.string.setup_title),
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Spacer(modifier = Modifier.size(12.dp))
+            checks.forEach { check ->
+                val (label, hint) = when (check.key) {
+                    CheckKey.BINDER -> stringResource(R.string.check_binder) to
+                        stringResource(R.string.check_binder_hint)
+                    CheckKey.SCOPE -> stringResource(R.string.check_scope) to
+                        stringResource(R.string.check_scope_hint)
+                    CheckKey.INSTALLED -> stringResource(R.string.check_installed) to
+                        stringResource(R.string.check_installed_hint)
+                    CheckKey.RESTART -> stringResource(R.string.check_restart) to
+                        stringResource(R.string.check_restart_hint)
+                }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = if (check.done) Icons.Filled.CheckCircle else Icons.Filled.Error,
+                        contentDescription = null,
+                        tint = if (check.done) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.error
+                        },
+                        modifier = Modifier.size(22.dp)
+                    )
+                    Spacer(modifier = Modifier.size(12.dp))
+                    Column {
+                        Text(label, style = MaterialTheme.typography.bodyLarge)
+                        Text(
+                            hint,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
             }
         }
     }

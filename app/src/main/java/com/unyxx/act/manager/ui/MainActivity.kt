@@ -4,6 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.padding
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.ViewModel
@@ -69,6 +70,9 @@ fun MainScreen(
     settingsViewModel: SettingsViewModel,
     logsViewModel: LogsViewModel
 ) {
+    val appsUiState by appsViewModel.uiState.collectAsState()
+    val enabledCount = appsUiState.apps.count { it.liquidGlassEnabled }
+
     androidx.compose.material3.Scaffold(
         bottomBar = {
             LiquidGlassTabBar(
@@ -77,7 +81,9 @@ fun MainScreen(
                     navController.navigate(route) {
                         launchSingleTop = true
                     }
-                }
+                },
+                appsBadge = enabledCount,
+                showLogs = com.unyxx.act.manager.di.ServiceLocator.isServiceAlive()
             )
         }
     ) { innerPadding ->
