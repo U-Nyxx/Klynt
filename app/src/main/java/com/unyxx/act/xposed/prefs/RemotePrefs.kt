@@ -1,6 +1,7 @@
 package com.unyxx.act.xposed.prefs
 
 import android.content.SharedPreferences
+import de.robv.android.xposed.XSharedPreferences
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.awaitClose
