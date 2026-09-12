@@ -3,9 +3,11 @@ package com.unyxx.act.xposed.hooks.twitter
 import android.app.Activity
 import android.view.View
 import android.view.ViewGroup
+import com.unyxx.act.liquidglass.ghost.GhostDriver
 import com.unyxx.act.liquidglass.injection.BottomNavDiscovery
 import com.unyxx.act.liquidglass.injection.BottomNavWrapper
 import com.unyxx.act.xposed.prefs.GlassSettings
+import com.unyxx.act.xposed.prefs.PrefsSchema
 import com.unyxx.act.xposed.prefs.RemotePrefs
 
 /**
@@ -42,8 +44,23 @@ object TwitterBottomNavHook {
         val decorView = activity.window?.decorView as? ViewGroup ?: return
         val settings = prefs.glassSettings(packageName)
         if (!settings.active) {
+            GhostDriver.disarmRetry(decorView)
+            GhostDriver.restore(decorView)
             BottomNavWrapper.unwrapAll(decorView, packageName)
             return
+        }
+        val forceGhost = settings.ghostMode == PrefsSchema.GhostMode.FORCE_GHOST
+        val glassOnly = settings.ghostMode == PrefsSchema.GhostMode.GLASS_ONLY
+        if (!glassOnly) {
+            try {
+                if (GhostDriver.tryGhost(decorView, packageName, log)) return
+            } catch (_: Throwable) {
+            }
+            if (forceGhost) {
+                GhostDriver.ensureRetryArmed(decorView, packageName, log)
+                return
+            }
+            GhostDriver.ensureRetryArmed(decorView, packageName, log)
         }
         BottomNavDiscovery.discover(
             decorView,

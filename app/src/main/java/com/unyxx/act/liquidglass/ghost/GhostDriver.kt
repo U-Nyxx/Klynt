@@ -38,6 +38,8 @@ object GhostDriver {
         val tabs: List<View>,
         /** Cover view whose full bounds our pill must blanket, if any. */
         val cover: View?,
+        /** Owning package: needed to re-arm retry after detach-restore. */
+        val pkg: String,
         var layoutListener: ViewTreeObserver.OnGlobalLayoutListener? = null,
         var observer: ViewTreeObserver? = null
     )
@@ -135,7 +137,7 @@ object GhostDriver {
             hidden.forEach { safeVisible(it) }
             return false
         }
-        val state = GhostState(overlay, bar, hidden, mapping.tabs, cover)
+        val state = GhostState(overlay, bar, hidden, mapping.tabs, cover, pkg)
         states[decor] = state
         syncGeometry(decor, state)
         bindTracking(decor, state)
@@ -281,14 +283,29 @@ object GhostDriver {
 
     /**
      * Highest ancestor of the tabs that still lives inside the bottom
-     * band (bottom edge ≥85% screen, height ≤35%, width ≥50%). That view's
-     * bounds are the painted bar region — hiding it removes the bar AND
-     * its manually-painted background in one move.
+     * band. That view's bounds are the painted bar region — hiding it
+     * removes the bar AND its manually-painted background in one move.
+     *
+     * Guards (learned from black voids on non-home screens): the cover
+     * must CONTAIN every mapped tab, stay ≤25% of screen height, span
+     * ≥60% width, and be no taller than 3x the tabs union. An oversized
+     * ancestor hides real content → pitch-black screens.
      */
     private fun findCover(decor: ViewGroup, tabs: List<View>): View? {
         val screenH = decor.resources.displayMetrics.heightPixels
         val screenW = decor.resources.displayMetrics.widthPixels
-        if (screenH <= 0 || screenW <= 0) return null
+        if (screenH <= 0 || screenW <= 0 || tabs.isEmpty()) return null
+        val unionH = run {
+            var t = Int.MAX_VALUE; var b = Int.MIN_VALUE
+            for (tab in tabs) {
+                try {
+                    val bb = boundsOf(tab)
+                    t = minOf(t, bb[1]); b = maxOf(b, bb[3])
+                } catch (_: Throwable) {
+                }
+            }
+            (b - t).coerceAtLeast(1)
+        }
         var v: View? = tabs.firstOrNull() ?: return null
         var best: View? = null
         while (v != null && v !== decor) {
@@ -297,8 +314,10 @@ object GhostDriver {
                 val w = b[2] - b[0]
                 val h = b[3] - b[1]
                 if (b[3] >= (screenH * 0.85).toInt() &&
-                    h in 1..(screenH * 0.35).toInt() &&
-                    w >= (screenW * 0.5).toInt()
+                    h in 1..(screenH * 0.25).toInt() &&
+                    w >= (screenW * 0.6).toInt() &&
+                    h <= unionH * 3 &&
+                    tabs.all { it === v || isAncestorOf(v, it) }
                 ) {
                     best = v
                 }
@@ -307,6 +326,15 @@ object GhostDriver {
             v = v.parent as? View
         }
         return best
+    }
+
+    private fun isAncestorOf(anc: View, v: View): Boolean {
+        var p = v.parent
+        while (p != null) {
+            if (p === anc) return true
+            p = p.parent
+        }
+        return false
     }
 
     private fun commonParent(tabs: List<View>): ViewGroup? {
@@ -411,10 +439,15 @@ object GhostDriver {
                     restore(decor)
                     return@OnGlobalLayoutListener
                 }
-                // Tabs rebuilt (fragment change)? Mapping dies → restore so
-                // the next pass re-ghosts instead of floating orphaned.
+                // Tabs rebuilt (fragment change)? Mapping dies → restore
+                // AND re-arm the retry in the same breath. Restoring
+                // without re-arming orphaned the decor: no resume fires
+                // on fragment switches, so nobody ever re-ghosted and the
+                // original stayed back permanently.
                 if (state.tabs.any { !it.isAttachedToWindow }) {
+                    val pkg = state.pkg
                     restore(decor)
+                    ensureRetryArmed(decor, pkg)
                     return@OnGlobalLayoutListener
                 }
                 syncGeometry(decor, state)
