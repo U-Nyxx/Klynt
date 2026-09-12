@@ -131,8 +131,10 @@ dependencies {
     // Logging
     implementation("com.jakewharton.timber:timber:5.0.1")
 
-    // Testing
+    // Testing (launcher must be explicit: the jupiter aggregator
+    // does not pull it, and without it the executor fails to start)
     testImplementation("org.junit.jupiter:junit-jupiter:5.10.2")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.10.2")
     testImplementation("io.mockk:mockk:1.13.13")
     testImplementation("app.cash.turbine:turbine:1.0.0")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
