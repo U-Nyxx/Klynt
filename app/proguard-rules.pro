@@ -35,8 +35,7 @@
 # Coroutines
 -keep class kotlinx.coroutines.** { *; }
 
-# Liquid Glass
--keep class com.example.liquidglass.** { *; }
+# KlyntGlass engine is ours (no third-party glass keeps needed).
 
 -dontwarn android.graphics.RuntimeColorFilter
 -dontwarn android.graphics.RuntimeXfermode

@@ -63,16 +63,16 @@ object TelegramBottomNavHook {
             // Ghost-first: our own bar driving the real tabs (ROM-proof
             // pixels). FORCE_GHOST never falls through to glass.
             try {
-                if (GhostDriver.tryGhost(decorView, packageName, log)) return
+                if (GhostDriver.tryGhost(decorView, packageName, log, settings.intensity)) return
             } catch (_: Throwable) {
             }
             if (forceGhost) {
-                GhostDriver.ensureRetryArmed(decorView, packageName, log)
+                GhostDriver.ensureRetryArmed(decorView, packageName, log, settings.intensity)
                 return
             }
             // AUTO: arm the retry so a later-built tab row still ghosts
             // (instead of glass winning permanently on an early miss).
-            GhostDriver.ensureRetryArmed(decorView, packageName, log)
+            GhostDriver.ensureRetryArmed(decorView, packageName, log, settings.intensity)
         }
         BottomNavDiscovery.discover(
             decorView,

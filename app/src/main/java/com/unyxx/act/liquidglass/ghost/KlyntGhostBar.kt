@@ -116,6 +116,21 @@ class KlyntGhostBar @JvmOverloads constructor(
     /** Called with the tapped slot index (driver forwards the click). */
     var onSlotTapped: ((Int) -> Unit)? = null
 
+    /** Finger press position in view coordinates (gel effect wiring). */
+    var onPressChanged: ((x: Float, y: Float, active: Boolean) -> Unit)? = null
+
+    /**
+     * Chrome-only mode: skips pill body/shadow/highlight/border and draws
+     * just glyphs, labels, selection and press rings. Used over
+     * [com.unyxx.act.liquidglass.engine.KlyntGlassView], which owns the
+     * glass background — Apple's layer rule (glass ≠ overlay).
+     */
+    var chromeOnly: Boolean = false
+        set(value) {
+            field = value
+            invalidate()
+        }
+
     private var slotCount: Int = 4
     private var pressedIndex: Int = -1
     private val pillRect = RectF()
@@ -197,28 +212,30 @@ class KlyntGhostBar @JvmOverloads constructor(
         canvas.scale(tapScale, tapScale, pillRect.centerX(), pillRect.centerY())
 
         val radius = pillRect.height() / 2f
-        // Soft outer shadow (lifts the pill off content).
-        canvas.drawRoundRect(
-            pillRect.left, pillRect.top + dp(3f),
-            pillRect.right, pillRect.bottom + dp(3f),
-            radius, radius, shadowPaint
-        )
-        // Pill body.
-        canvas.drawRoundRect(pillRect, radius, radius, bgPaint)
-        // Top specular highlight (the "glass" cue that needs no blur).
-        val save = canvas.save()
-        canvas.clipRect(pillRect.left, pillRect.top, pillRect.right, pillRect.centerY())
-        canvas.drawRoundRect(pillRect, radius, radius, highlightPaint)
-        // Bright top edge line: the iPhone specular read.
-        canvas.drawLine(
-            pillRect.left + radius, pillRect.top + dp(1f),
-            pillRect.right - radius, pillRect.top + dp(1f),
-            ringPaint.apply { alpha = 90 }
-        )
-        ringPaint.alpha = 255
-        canvas.restoreToCount(save)
-        // Border last so it stays crisp.
-        canvas.drawRoundRect(pillRect, radius, radius, borderPaint)
+        if (!chromeOnly) {
+            // Soft outer shadow (lifts the pill off content).
+            canvas.drawRoundRect(
+                pillRect.left, pillRect.top + dp(3f),
+                pillRect.right, pillRect.bottom + dp(3f),
+                radius, radius, shadowPaint
+            )
+            // Pill body.
+            canvas.drawRoundRect(pillRect, radius, radius, bgPaint)
+            // Top specular highlight (the "glass" cue that needs no blur).
+            val save = canvas.save()
+            canvas.clipRect(pillRect.left, pillRect.top, pillRect.right, pillRect.centerY())
+            canvas.drawRoundRect(pillRect, radius, radius, highlightPaint)
+            // Bright top edge line: the iPhone specular read.
+            canvas.drawLine(
+                pillRect.left + radius, pillRect.top + dp(1f),
+                pillRect.right - radius, pillRect.top + dp(1f),
+                ringPaint.apply { alpha = 90 }
+            )
+            ringPaint.alpha = 255
+            canvas.restoreToCount(save)
+            // Border last so it stays crisp.
+            canvas.drawRoundRect(pillRect, radius, radius, borderPaint)
+        }
 
         val slotW = pillRect.width() / slotCount
         for (i in 0 until slotCount) {
@@ -310,6 +327,7 @@ class KlyntGhostBar @JvmOverloads constructor(
                 val slot = slotAt(event.x, event.y)
                 if (slot < 0) return false // outside pill: passthrough
                 pressedIndex = slot
+                onPressChanged?.invoke(event.x, event.y, true)
                 invalidate()
                 return true
             }
@@ -320,14 +338,18 @@ class KlyntGhostBar @JvmOverloads constructor(
                     if (now >= 0) {
                         // Glide feedback: tick per slot crossed.
                         performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                        onPressChanged?.invoke(event.x, event.y, true)
                     }
                     invalidate()
+                } else if (now >= 0) {
+                    onPressChanged?.invoke(event.x, event.y, true)
                 }
                 return true
             }
             MotionEvent.ACTION_UP -> {
                 val tapped = slotAt(event.x, event.y)
                 pressedIndex = -1
+                onPressChanged?.invoke(0f, 0f, false)
                 invalidate()
                 if (tapped >= 0) {
                     performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
@@ -339,6 +361,7 @@ class KlyntGhostBar @JvmOverloads constructor(
             }
             MotionEvent.ACTION_CANCEL -> {
                 pressedIndex = -1
+                onPressChanged?.invoke(0f, 0f, false)
                 invalidate()
                 return true
             }

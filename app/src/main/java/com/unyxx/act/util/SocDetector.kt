@@ -4,7 +4,6 @@ import android.app.ActivityManager
 import android.content.Context
 import android.os.Build
 import android.os.PowerManager
-import com.example.liquidglass.BlurMethod
 
 /**
  * Runtime SoC detection for adaptive Liquid Glass quality.
@@ -21,7 +20,6 @@ object SocDetector {
         val refractionDp: Float,
         val bevelDp: Float,
         val dispersion: Float,
-        val preferredBlurMethod: BlurMethod,
         /** True on Exynos: caller should keep effects conservative. */
         val thermalListenerRequired: Boolean,
         /**
@@ -30,7 +28,7 @@ object SocDetector {
          * 1080p bar) is the #1 RAM/GC cost — only full-lens tiers pay it.
          */
         val dynamicBackdrop: Boolean,
-        /** False → QWEA0 low-quality path (cheaper blur pipeline). */
+        /** False → cheaper pipeline (tier documentation for the engine). */
         val highQuality: Boolean
     )
 
@@ -49,29 +47,29 @@ object SocDetector {
             // Snapdragon 8-series + 8 Elite (Adreno + Hexagon): full lens.
             hardware.startsWith("sm8") || hardware.startsWith("sun") ||
                 hardware.startsWith("taro") || hardware.startsWith("kalama") ->
-                Profile(false, 66f, 14f, 0.10f, BlurMethod.SMART, false, true, true)
+                Profile(false, 66f, 14f, 0.10f, false, true, true)
             // Snapdragon 6/7/4-series: slightly reduced lens.
             hardware.startsWith("sm6") || hardware.startsWith("sm7") ||
                 hardware.startsWith("sm4") || hardware.startsWith("cedar") ||
                 hardware.startsWith("tundra") ->
-                Profile(false, 48f, 12f, 0.08f, BlurMethod.SMART, false, true, true)
+                Profile(false, 48f, 12f, 0.08f, false, true, true)
             // Dimensity 8000/9000 (Mali flagship): reduced lens.
             hardware.startsWith("mt8") || hardware.startsWith("mt9") ->
-                Profile(false, 48f, 12f, 0.08f, BlurMethod.SMART, false, true, true)
+                Profile(false, 48f, 12f, 0.08f, false, true, true)
             // Dimensity 6000/7000 (Mali mid-range): aggressive throttling,
             // older Vulkan drivers — frosted fallback, no refraction.
             hardware.startsWith("mt6") || hardware.startsWith("mt7") ->
-                Profile(true, 32f, 10f, 0f, BlurMethod.IIR_GAUSSIAN_NEON, false, false, false)
+                Profile(true, 32f, 10f, 0f, false, false, false)
             // Samsung Exynos (Xclipse, incl. legacy exynos*): lower power
             // efficiency, mandatory conservative profile.
             hardware.startsWith("s5e") || hardware.startsWith("exynos") || brand == "samsung" ->
-                Profile(false, 40f, 10f, 0.06f, BlurMethod.SMART, true, true, true)
+                Profile(false, 40f, 10f, 0.06f, true, true, true)
             // Google Tensor (Edge TPU, Mali GPU): full lens, moderate bevel.
             hardware.startsWith("gs") || hardware.startsWith("tensor") ||
                 hardware.startsWith("zuma") || hardware.startsWith("laguna") ->
-                Profile(false, 66f, 14f, 0.10f, BlurMethod.SMART, false, true, true)
+                Profile(false, 66f, 14f, 0.10f, false, true, true)
             // Unknown: frosted fallback is always safe.
-            else -> Profile(true, 32f, 10f, 0f, BlurMethod.SMART, false, false, false)
+            else -> Profile(true, 32f, 10f, 0f, false, false, false)
         }
     }
 

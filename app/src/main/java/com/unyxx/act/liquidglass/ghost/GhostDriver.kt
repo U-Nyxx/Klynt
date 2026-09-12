@@ -5,7 +5,11 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.ViewTreeObserver
 import android.widget.FrameLayout
+import com.unyxx.act.liquidglass.engine.KlyntGlassView
+import com.unyxx.act.liquidglass.engine.KlyntTier
+import com.unyxx.act.liquidglass.engine.selectGlassTier
 import com.unyxx.act.liquidglass.injection.BottomNavWrapper
+import com.unyxx.act.util.SocDetector
 import java.util.Collections
 import java.util.WeakHashMap
 
@@ -33,6 +37,7 @@ object GhostDriver {
 
     private data class GhostState(
         val overlay: FrameLayout,
+        val glass: KlyntGlassView,
         val bar: KlyntGhostBar,
         val hidden: List<View>,
         val tabs: List<View>,
@@ -50,7 +55,8 @@ object GhostDriver {
     private data class RetryState(
         var listener: ViewTreeObserver.OnGlobalLayoutListener? = null,
         var observer: ViewTreeObserver? = null,
-        var attachListener: View.OnAttachStateChangeListener? = null
+        var attachListener: View.OnAttachStateChangeListener? = null,
+        var intensity: Float = 1f
     )
 
     private val retries: MutableMap<ViewGroup, RetryState> =
@@ -63,7 +69,8 @@ object GhostDriver {
     fun tryGhost(
         decor: ViewGroup,
         pkg: String,
-        log: (String) -> Unit = {}
+        log: (String) -> Unit = {},
+        intensity: Float = 1f
     ): Boolean {
         if (decor.width <= 0 || decor.height <= 0) return false
         val mapping = mapTabs(decor) ?: return false
@@ -115,7 +122,22 @@ object GhostDriver {
             isClickable = false
             isFocusable = false
         }
+        // Glass background (proprietary KlyntGlass engine) + chrome bar.
+        // Apple's layer rule: glass layer and overlay layer stay separate
+        // views so glyphs/labels are never refracted, only the backdrop.
+        val glass = KlyntGlassView(decor.context)
+        glass.intensity = intensity
+        try {
+            val profile = SocDetector.resolve(decor.context)
+            val lowRam = isLowRamDevice(decor.context)
+            glass.tier = selectGlassTier(
+                profile.frostedFallback, lowRam, isThrottledNow(decor.context)
+            )
+        } catch (_: Throwable) {
+            glass.tier = KlyntTier.SCRIM
+        }
         val bar = KlyntGhostBar(decor.context).apply {
+            chromeOnly = true
             labels = mapping.labels
             onSlotTapped = { index ->
                 try {
@@ -123,21 +145,23 @@ object GhostDriver {
                 } catch (_: Throwable) {
                 }
             }
+            onPressChanged = { x, y, active ->
+                if (active) glass.setPress(x, y, 1f) else glass.clearPress()
+            }
         }
-        overlay.addView(
-            bar,
-            ViewGroup.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.MATCH_PARENT
-            )
+        val matchParent = ViewGroup.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.MATCH_PARENT
         )
+        overlay.addView(glass, matchParent)
+        overlay.addView(bar, matchParent)
         try {
             decor.addView(overlay)
         } catch (_: Throwable) {
             hidden.forEach { safeVisible(it) }
             return false
         }
-        val state = GhostState(overlay, bar, hidden, mapping.tabs, cover, pkg)
+        val state = GhostState(overlay, glass, bar, hidden, mapping.tabs, cover, pkg)
         states[decor] = state
         syncGeometry(decor, state)
         bindTracking(decor, state)
@@ -147,8 +171,29 @@ object GhostDriver {
             BottomNavWrapper.unwrapAll(decor, pkg)
         } catch (_: Throwable) {
         }
-        log("Ghost bar active in $pkg: ${mapping.tabs.size} tabs [${mapping.labels.joinToString("/")}]")
+        log("Ghost bar active in $pkg: ${mapping.tabs.size} tabs [${mapping.labels.joinToString("/")}] tier=${glass.tier}")
         return true
+    }
+
+    private fun isLowRamDevice(context: android.content.Context): Boolean {
+        return try {
+            val am = context.getSystemService(android.content.Context.ACTIVITY_SERVICE)
+                as? android.app.ActivityManager
+            (am?.isLowRamDevice == true) || ((am?.memoryClass ?: 256) < 192)
+        } catch (_: Throwable) {
+            false
+        }
+    }
+
+    private fun isThrottledNow(context: android.content.Context): Boolean {
+        return try {
+            val pm = context.getSystemService(android.content.Context.POWER_SERVICE)
+                as? android.os.PowerManager
+            (pm?.currentThermalStatus ?: android.os.PowerManager.THERMAL_STATUS_NONE) >=
+                android.os.PowerManager.THERMAL_STATUS_MODERATE
+        } catch (_: Throwable) {
+            false
+        }
     }
 
     /**
@@ -158,10 +203,15 @@ object GhostDriver {
      * original bar stayed visible forever ("muncul lalu menetap").
      * Disarms on success, on [restore], or on decor detach.
      */
-    fun ensureRetryArmed(decor: ViewGroup, pkg: String, log: (String) -> Unit = {}) {
+    fun ensureRetryArmed(
+        decor: ViewGroup,
+        pkg: String,
+        log: (String) -> Unit = {},
+        intensity: Float = 1f
+    ) {
         if (states.containsKey(decor) || retries.containsKey(decor)) return
         if (!decor.isAttachedToWindow) return
-        val retry = RetryState()
+        val retry = RetryState(intensity = intensity)
         retries[decor] = retry
         var last = 0L
         val listener = ViewTreeObserver.OnGlobalLayoutListener {
@@ -173,7 +223,7 @@ object GhostDriver {
                     disarmRetry(decor)
                     return@OnGlobalLayoutListener
                 }
-                tryGhost(decor, pkg, log)
+                tryGhost(decor, pkg, log, retry.intensity)
             } catch (_: Throwable) {
             }
         }
@@ -395,6 +445,10 @@ object GhostDriver {
                         loc[0] - decorLoc[0], loc[1] - decorLoc[1],
                         loc[0] - decorLoc[0] + w, loc[1] - decorLoc[1] + h
                     )
+                    state.glass.setBarRect(
+                        loc[0] - decorLoc[0], loc[1] - decorLoc[1],
+                        loc[0] - decorLoc[0] + w, loc[1] - decorLoc[1] + h
+                    )
                     state.bar.labels = state.tabs.map { labelOf(it) }
                     return
                 }
@@ -423,6 +477,7 @@ object GhostDriver {
             val pad = (decor.resources.displayMetrics.density * 4).toInt()
             r.inset(-pad, -pad)
             state.bar.setBarRect(r.left, r.top, r.right, r.bottom)
+            state.glass.setBarRect(r.left, r.top, r.right, r.bottom)
             state.bar.labels = state.tabs.map { labelOf(it) }
         } catch (_: Throwable) {
         }

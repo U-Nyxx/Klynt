@@ -493,13 +493,24 @@ private fun GlassPreview() {
         }
         AndroidView(
             factory = { ctx ->
-                com.unyxx.act.liquidglass.ghost.KlyntGhostBar(ctx).apply {
-                    labels = listOf("Obrolan", "Kontak", "Setelan", "Profil")
-                    selectedIndex = 0
-                    // Pill fills the preview box (inset a little).
+                android.widget.FrameLayout(ctx).apply {
+                    val glass = com.unyxx.act.liquidglass.engine.KlyntGlassView(ctx)
+                    val bar = com.unyxx.act.liquidglass.ghost.KlyntGhostBar(ctx).apply {
+                        chromeOnly = true
+                        labels = listOf("Obrolan", "Kontak", "Setelan", "Profil")
+                        selectedIndex = 0
+                    }
+                    val mp = android.view.ViewGroup.LayoutParams(
+                        android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                        android.view.ViewGroup.LayoutParams.MATCH_PARENT
+                    )
+                    addView(glass, mp)
+                    addView(bar, mp)
+                    // Glass background + chrome bar: exactly the target stack.
                     post {
                         val pad = (resources.displayMetrics.density * 8).toInt()
-                        setBarRect(pad, pad, width - pad, height - pad)
+                        glass.setBarRect(pad, pad, width - pad, height - pad)
+                        bar.setBarRect(pad, pad, width - pad, height - pad)
                     }
                 }
             },

@@ -12,7 +12,7 @@ dependencyResolutionManagement {
         google()
         mavenCentral()
         maven("https://api.xposed.info/")
-        maven("https://jitpack.io")
+        // JitPack removed with QWEA0 (v1.0.8): zero third-party glass.
     }
 }
 

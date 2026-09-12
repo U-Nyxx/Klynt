@@ -53,14 +53,14 @@ object TwitterBottomNavHook {
         val glassOnly = settings.ghostMode == PrefsSchema.GhostMode.GLASS_ONLY
         if (!glassOnly) {
             try {
-                if (GhostDriver.tryGhost(decorView, packageName, log)) return
+                if (GhostDriver.tryGhost(decorView, packageName, log, settings.intensity)) return
             } catch (_: Throwable) {
             }
             if (forceGhost) {
-                GhostDriver.ensureRetryArmed(decorView, packageName, log)
+                GhostDriver.ensureRetryArmed(decorView, packageName, log, settings.intensity)
                 return
             }
-            GhostDriver.ensureRetryArmed(decorView, packageName, log)
+            GhostDriver.ensureRetryArmed(decorView, packageName, log, settings.intensity)
         }
         BottomNavDiscovery.discover(
             decorView,

@@ -18,7 +18,9 @@ android {
 
     defaultConfig {
         applicationId = "com.unyxx.act"
-        minSdk = 30
+        // 33: KlyntGlass engine is AGSL (RuntimeShader needs Tiramisu+).
+        // Older rooted phones stay on v1.0.7 and below.
+        minSdk = 33
         targetSdk = 35
         versionCode = 9
         versionName = "1.0.7"
@@ -96,8 +98,8 @@ dependencies {
     compileOnly("io.github.libxposed:api:101.0.0")
     implementation("io.github.libxposed:service:101.0.0")
 
-    // Liquid Glass (JitPack)
-    implementation("com.github.QWEA0:liquidglass:v2.0.8")
+    // KlyntGlass engine is proprietary (liquidglass/engine) — no JitPack
+    // dependency anymore. MDC went with it (only QWEA0 needed it).
 
     // Compose + Material 3 - Latest stable BOM
     implementation(platform("androidx.compose:compose-bom:2024.08.00"))
@@ -120,13 +122,9 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
 
     // NOTE (diet): coil, work-runtime, navigation-compose,
-    // core-splashscreen, retrofit + converter-gson were removed — zero
-    // usages in main source (verified). Update check uses OkHttp + Gson.
-    // MDC STAYS despite zero direct usage: QWEA0 LiquidGlassDialogBuilder
-    // references MaterialAlertDialogBuilder and R8 hard-fails without it
-    // (proven by v1.0.4 tag build). ~1.5 MB insurance against crashes
-    // inside target apps — the worst possible place for NoClassDefFound.
-    implementation("com.google.android.material:material:1.12.0")
+    // core-splashscreen, retrofit + converter-gson, QWEA0 liquidglass and
+    // MDC were removed — zero usages in main source (verified, v1.0.8).
+    // Update check uses OkHttp + Gson directly.
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
 
     // JSON

@@ -102,19 +102,16 @@ fun LiquidGlassTabBar(
             .shadow(12.dp, capsule)
             .clip(capsule)
     ) {
-        // Tonal scrim (theme-aware) instead of live blur: crash-proof.
-        Box(
-            modifier = Modifier
-                .matchParentSize()
-                .background(
-                    Brush.verticalGradient(
-                        listOf(
-                            MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.92f),
-                            MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.95f)
-                        )
-                    ),
-                    capsule
-                )
+        // Live proprietary glass (KlyntGlass engine, same as targets).
+        androidx.compose.ui.viewinterop.AndroidView(
+            factory = { ctx ->
+                com.unyxx.act.liquidglass.engine.KlyntGlassView(ctx).apply {
+                    addOnLayoutChangeListener { v, l, t, r, b, _, _, _, _ ->
+                        setBarRect(0, 0, r - l, b - t)
+                    }
+                }
+            },
+            modifier = Modifier.matchParentSize()
         )
         // 1dp light border.
         Box(

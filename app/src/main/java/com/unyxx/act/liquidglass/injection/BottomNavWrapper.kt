@@ -9,7 +9,9 @@ import android.view.ViewGroup
 import android.view.ViewTreeObserver
 import android.widget.FrameLayout
 import com.unyxx.act.R
-import com.unyxx.act.liquidglass.KlyntLiquidGlassView
+import com.unyxx.act.liquidglass.engine.KlyntGlassView
+import com.unyxx.act.liquidglass.engine.KlyntTier
+import com.unyxx.act.liquidglass.engine.selectGlassTier
 
 /**
  * Wraps a target app's bottom navigation view with a liquid-glass overlay.
@@ -37,7 +39,7 @@ class BottomNavWrapper @JvmOverloads constructor(
         /** True for our own views — never wrap these, never treat as nav. */
         fun isOurs(view: View): Boolean {
             if (view is BottomNavWrapper) return true
-            if (view is KlyntLiquidGlassView) return true
+            if (view is KlyntGlassView) return true
             return view.getTag(R.id.klynt_tag_injected) != null ||
                 view.getTag(R.id.klynt_tag_wrapper) != null
         }
@@ -83,7 +85,7 @@ class BottomNavWrapper @JvmOverloads constructor(
     }
 
     private var original: View? = null
-    private var glass: KlyntLiquidGlassView? = null
+    private var glass: KlyntGlassView? = null
     private var scrollListener: ViewTreeObserver.OnScrollChangedListener? = null
     private val scrollHandler = Handler(Looper.getMainLooper())
     private var showRunnable: Runnable? = null
@@ -99,13 +101,20 @@ class BottomNavWrapper @JvmOverloads constructor(
      */
     fun reconfigure(intensity: Float, cornerDp: Float, blur: Boolean) {
         try {
-            glass?.configure(
-                com.unyxx.act.util.SocDetector.resolve(context),
-                context,
-                intensity.coerceIn(0f, 1f),
-                cornerDp,
-                blur
-            )
+            val profile = com.unyxx.act.util.SocDetector.resolve(context)
+            val g = glass ?: return
+            g.intensity = intensity.coerceIn(0f, 1f)
+            g.tier = if (!blur) {
+                KlyntTier.SCRIM
+            } else {
+                selectGlassTier(profile.frostedFallback, false, false)
+            }
+            // Re-resolve bounds against the (possibly resized) reference.
+            original?.let { ref ->
+                if (ref.width > 0 && ref.height > 0) {
+                    g.setBarRect(0, 0, ref.width, ref.height)
+                }
+            }
         } catch (_: Throwable) {
             // Glass half-torn-down (detach race) — next pass re-wraps.
         }
@@ -138,17 +147,23 @@ class BottomNavWrapper @JvmOverloads constructor(
 
         original = originalView
         addView(originalView, 0, ViewGroup.LayoutParams(params.width, params.height))
-        glass = KlyntLiquidGlassView(context).apply {
+        glass = KlyntGlassView(context).apply {
             isClickable = false
             isFocusable = false
-            configure(
-                com.unyxx.act.util.SocDetector.resolve(context),
-                context,
-                intensity.coerceIn(0f, 1f),
-                cornerDp,
-                blur
-            )
-            attachToReference(originalView)
+            intensity = intensity.coerceIn(0f, 1f)
+            val profile = com.unyxx.act.util.SocDetector.resolve(context)
+            tier = if (!blur) {
+                KlyntTier.SCRIM
+            } else {
+                selectGlassTier(profile.frostedFallback, false, false)
+            }
+            // Glass spans our full slot; the shader masks the pill shape.
+            post {
+                try {
+                    if (width > 0 && height > 0) setBarRect(0, 0, width, height)
+                } catch (_: Throwable) {
+                }
+            }
         }
         addView(glass, 1, ViewGroup.LayoutParams(params.width, params.height))
 
