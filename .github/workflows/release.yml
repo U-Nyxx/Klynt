@@ -67,6 +67,15 @@ jobs:
           VERSION=${GITHUB_REF_NAME#v}
           mv app-release.apk klynt-${VERSION}-ArJk.apk
 
+      # Definitive rotation/signature proof: prints the signer cert
+      # fingerprints into the workflow log for comparison with the
+      # offline keystore. Fails the job if verification fails.
+      - name: Verify signature + print certs
+        run: |
+          APKSIGNER=$(find "${ANDROID_HOME:-$ANDROID_SDK_ROOT}" -name apksigner -type f | head -1)
+          echo "apksigner: $APKSIGNER"
+          "$APKSIGNER" verify --print-certs app/build/outputs/apk/release/klynt-*.apk
+
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
