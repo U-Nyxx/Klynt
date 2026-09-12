@@ -22,6 +22,7 @@
     <string name="tune_corner">Radius sudut</string>
     <string name="tune_pill">Pil</string>
     <string name="tune_blur">Blur latar</string>
+    <string name="tune_clear">Kaca bening (Clear Apple)</string>
     <string name="tune_mode">Mode bar</string>
     <string name="mode_auto">Otomatis</string>
     <string name="mode_ghost">Paksa custom</string>

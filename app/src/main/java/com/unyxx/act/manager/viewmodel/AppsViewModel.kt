@@ -48,7 +48,8 @@ class AppsViewModel(
                     intensity = ServiceLocator.getGlassIntensity(pkg),
                     cornerDp = ServiceLocator.getGlassCorner(pkg),
                     blurEnabled = ServiceLocator.isFeatureEnabled(pkg, PrefsSchema.Feature.BLUR_ENABLED),
-                    ghostMode = ServiceLocator.getGhostMode(pkg)
+                    ghostMode = ServiceLocator.getGhostMode(pkg),
+                    clearGlass = ServiceLocator.isFeatureEnabled(pkg, PrefsSchema.Feature.GLASS_CLEAR)
                 )
             }
             _uiState.value = _uiState.value.copy(apps = appsList)
@@ -109,6 +110,17 @@ class AppsViewModel(
         )
     }
 
+    fun toggleClear(packageName: String, enable: Boolean) {
+        ServiceLocator.setFeatureEnabled(packageName, PrefsSchema.Feature.GLASS_CLEAR, enable)
+        _uiState.value = _uiState.value.copy(
+            apps = _uiState.value.apps.map { app ->
+                if (app.packageName == packageName) {
+                    app.copy(clearGlass = enable)
+                } else app
+            }
+        )
+    }
+
     fun toggleBlur(packageName: String, enable: Boolean) {
         ServiceLocator.setFeatureEnabled(packageName, PrefsSchema.Feature.BLUR_ENABLED, enable)
         _uiState.value = _uiState.value.copy(
@@ -140,5 +152,6 @@ data class AppUiState(
     val intensity: Float = 1f,
     val cornerDp: Float = 999f,
     val blurEnabled: Boolean = true,
-    val ghostMode: PrefsSchema.GhostMode = PrefsSchema.GhostMode.AUTO
+    val ghostMode: PrefsSchema.GhostMode = PrefsSchema.GhostMode.AUTO,
+    val clearGlass: Boolean = false
 )

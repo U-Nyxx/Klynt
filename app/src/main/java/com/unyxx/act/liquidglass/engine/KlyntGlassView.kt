@@ -44,10 +44,42 @@ class KlyntGlassView @JvmOverloads constructor(
             pushUniforms()
         }
 
+    private var materializeAnim: android.animation.ValueAnimator? = null
+
+    /**
+     * Materialize transition (Apple rule): the element appears by
+     * modulating lens bending 0→target, never by opacity crossfade.
+     * Call right after the overlay is attached.
+     */
+    fun animateIntensityTo(target: Float) {
+        val to = target.coerceIn(0f, 1f)
+        materializeAnim?.cancel()
+        intensity = 0f
+        materializeAnim = android.animation.ValueAnimator.ofFloat(0f, to).apply {
+            duration = 280
+            interpolator = android.view.animation.DecelerateInterpolator()
+            addUpdateListener {
+                intensity = it.animatedValue as Float
+            }
+            start()
+        }
+    }
+
     var tier: KlyntTier = KlyntTier.SHADER
         set(value) {
             field = value
             rebuildEffect()
+        }
+
+    /** Apple's Clear variant: max transparency, full refraction. */
+    var clearMode: Boolean = false
+        set(value) {
+            field = value
+            try {
+                shader?.setFloatUniform("clearMode", if (value) 1f else 0f)
+                invalidate()
+            } catch (_: Throwable) {
+            }
         }
 
     private val dark: Boolean =
@@ -97,6 +129,7 @@ class KlyntGlassView @JvmOverloads constructor(
             s.setFloatUniform("cornerRadius", r)
             s.setFloatUniform("intensity", intensity)
             s.setFloatUniform("dark", if (dark) 1f else 0f)
+            s.setFloatUniform("clearMode", if (clearMode) 1f else 0f)
             invalidate()
         } catch (_: Throwable) {
             degradeToScrim()

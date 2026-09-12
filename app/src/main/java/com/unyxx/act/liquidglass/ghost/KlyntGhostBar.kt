@@ -66,8 +66,35 @@ class KlyntGhostBar @JvmOverloads constructor(
     private var slideAnim: ValueAnimator? = null
 
     /** Tap bounce scale (1 = rest). */
-    private var tapScale: Float = 1f
+    var tapScale: Float = 1f
     private var bounceAnim: ValueAnimator? = null
+
+    /**
+     * Scroll-shrink factor (iOS tab behavior): 1 = full bar, ~0.72 =
+     * tucked while content scrolls. Labels fade out as it shrinks,
+     * glyphs stay for instant access. Animated, never snapped.
+     */
+    private var shrinkF: Float = 1f
+    private var shrinkAnim: ValueAnimator? = null
+
+    fun setShrink(f: Float) {
+        val target = f.coerceIn(0.72f, 1f)
+        if (target == shrinkF) return
+        shrinkAnim?.cancel()
+        val from = shrinkF
+        shrinkAnim = ValueAnimator.ofFloat(from, target).apply {
+            duration = 200
+            interpolator = DecelerateInterpolator()
+            addUpdateListener {
+                shrinkF = it.animatedValue as Float
+                invalidate()
+            }
+            start()
+        }
+    }
+
+    /** Droplet stretch of the sliding indicator (1 = circle). */
+    private var slideStretch: Float = 1f
 
     private fun slotCenterX(index: Int): Float {
         if (pillRect.isEmpty || slotCount <= 0) return -1f
@@ -89,13 +116,28 @@ class KlyntGhostBar @JvmOverloads constructor(
         }
         slideAnim?.cancel()
         val from = selectedCx
+        var last = from
         slideAnim = ValueAnimator.ofFloat(from, target).apply {
             duration = 220
             interpolator = DecelerateInterpolator()
             addUpdateListener {
-                selectedCx = it.animatedValue as Float
+                val now = it.animatedValue as Float
+                // Droplet morph: stretch along motion proportional to
+                // per-frame travel, relaxing back on arrival.
+                val slotW = if (pillRect.isEmpty || slotCount <= 0) 1f
+                else pillRect.width() / slotCount
+                val v = kotlin.math.abs(now - last) / slotW.coerceAtLeast(1f)
+                last = now
+                selectedCx = now
+                slideStretch = (1f + (v * 4f).coerceIn(0f, 0.6f))
                 invalidate()
             }
+            addListener(object : android.animation.AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: android.animation.Animator) {
+                    slideStretch = 1f
+                    invalidate()
+                }
+            })
             start()
         }
     }
@@ -115,6 +157,22 @@ class KlyntGhostBar @JvmOverloads constructor(
 
     /** Called with the tapped slot index (driver forwards the click). */
     var onSlotTapped: ((Int) -> Unit)? = null
+
+    /**
+     * Clear-variant dimming: a soft dark strip behind the label row so
+     * glyphs stay legible over bright content (Apple's dimming-layer
+     * rule for Clear). Off in Regular.
+     */
+    var clearDimming: Boolean = false
+        set(value) {
+            field = value
+            invalidate()
+        }
+
+    private val dimPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.FILL
+        color = 0x59000000.toInt()
+    }
 
     /** Finger press position in view coordinates (gel effect wiring). */
     var onPressChanged: ((x: Float, y: Float, active: Boolean) -> Unit)? = null
@@ -207,9 +265,11 @@ class KlyntGhostBar @JvmOverloads constructor(
         // First draw ever: snap the indicator (no slide from nowhere).
         if (selectedCx < 0f) selectedCx = slotCenterX(selectedIndex)
 
-        // Tap bounce around the pill center.
+        // Tap bounce + scroll-shrink around the pill center.
         canvas.save()
-        canvas.scale(tapScale, tapScale, pillRect.centerX(), pillRect.centerY())
+        canvas.scale(tapScale, tapScale * shrinkF, pillRect.centerX(), pillRect.centerY())
+        // Labels dissolve as the bar tucks (iOS scroll behavior).
+        val labelA = ((shrinkF - 0.72f) / 0.28f).coerceIn(0f, 1f)
 
         val radius = pillRect.height() / 2f
         if (!chromeOnly) {
@@ -238,14 +298,28 @@ class KlyntGhostBar @JvmOverloads constructor(
         }
 
         val slotW = pillRect.width() / slotCount
+        if (clearDimming) {
+            // Dim band behind labels only — glyphs keep full vibrancy.
+            val bandTop = pillRect.top + pillRect.height() * 0.52f
+            canvas.drawRoundRect(
+                pillRect.left + dp(10f), bandTop,
+                pillRect.right - dp(10f), pillRect.bottom - dp(6f),
+                dp(12f), dp(12f), dimPaint
+            )
+        }
         for (i in 0 until slotCount) {
             val selected = i == selectedIndex
             val cx = pillRect.left + slotW * i + slotW / 2f
             val cy = pillRect.top + pillRect.height() * 0.36f
-            // Selection indicator SLIDES (selectedCx) instead of jumping.
+            // Selection indicator SLIDES (selectedCx) and MORPHS
+            // (droplet stretch along motion) instead of jumping.
             if (i == selectedIndex && selectedCx >= 0f) {
                 val r = min(slotW, pillRect.height()) * 0.30f
-                canvas.drawCircle(selectedCx, cy, r, accentPaint)
+                canvas.save()
+                canvas.translate(selectedCx, cy)
+                canvas.scale(slideStretch, 1f / kotlin.math.sqrt(slideStretch))
+                canvas.drawCircle(0f, 0f, r, accentPaint)
+                canvas.restore()
             }
             // Pressed ring follows the finger.
             if (pressedIndex == i) {
@@ -261,7 +335,7 @@ class KlyntGhostBar @JvmOverloads constructor(
                 dark -> 0xB8FFFFFF.toInt()
                 else -> 0xB8000000.toInt()
             }
-            if (pressedIndex == i) textPaint.alpha = 128
+            textPaint.alpha = ((if (pressedIndex == i) 128 else 255) * labelA).toInt()
             canvas.drawText(
                 labels.getOrElse(i) { "" },
                 cx, cy + dp(24f), textPaint

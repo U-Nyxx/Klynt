@@ -121,6 +121,7 @@ fun AppsScreen(viewModel: AppsViewModel) {
                     onIntensity = { pkg, v -> viewModel.setGlassIntensity(pkg, v) },
                     onCorner = { pkg, v -> viewModel.setGlassCorner(pkg, v) },
                     onBlur = { pkg, v -> viewModel.toggleBlur(pkg, v) },
+                    onClear = { pkg, v -> viewModel.toggleClear(pkg, v) },
                     onMode = { pkg, m -> viewModel.setGhostMode(pkg, m) }
                 )
             }
@@ -135,6 +136,7 @@ fun AppsScreen(viewModel: AppsViewModel) {
                     onIntensity = { pkg, v -> viewModel.setGlassIntensity(pkg, v) },
                     onCorner = { pkg, v -> viewModel.setGlassCorner(pkg, v) },
                     onBlur = { pkg, v -> viewModel.toggleBlur(pkg, v) },
+                    onClear = { pkg, v -> viewModel.toggleClear(pkg, v) },
                     onMode = { pkg, m -> viewModel.setGhostMode(pkg, m) }
                 )
             }
@@ -152,6 +154,7 @@ fun AppFamilySection(
     onIntensity: (String, Float) -> Unit,
     onCorner: (String, Float) -> Unit,
     onBlur: (String, Boolean) -> Unit,
+    onClear: (String, Boolean) -> Unit,
     onMode: (String, com.unyxx.act.xposed.prefs.PrefsSchema.GhostMode) -> Unit
 ) {
     if (apps.isEmpty()) return
@@ -181,6 +184,7 @@ fun AppFamilySection(
                     onIntensity = onIntensity,
                     onCorner = onCorner,
                     onBlur = onBlur,
+                    onClear = onClear,
                     onMode = onMode
                 )
             }
@@ -196,6 +200,7 @@ fun AppRow(
     onIntensity: (String, Float) -> Unit = { _, _ -> },
     onCorner: (String, Float) -> Unit = { _, _ -> },
     onBlur: (String, Boolean) -> Unit = { _, _ -> },
+    onClear: (String, Boolean) -> Unit = { _, _ -> },
     onMode: (String, com.unyxx.act.xposed.prefs.PrefsSchema.GhostMode) -> Unit = { _, _ -> }
 ) {
     var expanded by remember(app.packageName) { mutableStateOf(false) }
@@ -299,6 +304,7 @@ fun AppRow(
                     onIntensity = onIntensity,
                     onCorner = onCorner,
                     onBlur = onBlur,
+                    onClear = onClear,
                     onMode = onMode
                 )
             }
@@ -314,6 +320,7 @@ private fun TunePanel(
     onIntensity: (String, Float) -> Unit,
     onCorner: (String, Float) -> Unit,
     onBlur: (String, Boolean) -> Unit,
+    onClear: (String, Boolean) -> Unit,
     onMode: (String, com.unyxx.act.xposed.prefs.PrefsSchema.GhostMode) -> Unit
 ) {
     Column(
@@ -363,6 +370,20 @@ private fun TunePanel(
             Switch(
                 checked = app.blurEnabled,
                 onCheckedChange = { onBlur(app.packageName, it) }
+            )
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                stringResource(R.string.tune_clear),
+                style = MaterialTheme.typography.bodyMedium
+            )
+            Switch(
+                checked = app.clearGlass,
+                onCheckedChange = { onClear(app.packageName, it) }
             )
         }
     }

@@ -46,8 +46,13 @@ object GhostDriver {
         /** Owning package: needed to re-arm retry after detach-restore. */
         val pkg: String,
         var layoutListener: ViewTreeObserver.OnGlobalLayoutListener? = null,
-        var observer: ViewTreeObserver? = null
+        var observer: ViewTreeObserver? = null,
+        var scrollListener: ViewTreeObserver.OnScrollChangedListener? = null,
+        var scrollObserver: ViewTreeObserver? = null,
+        var idleReset: Runnable? = null
     )
+
+    private val scrollHandler = android.os.Handler(android.os.Looper.getMainLooper())
 
     private val states: MutableMap<ViewGroup, GhostState> =
         Collections.synchronizedMap(WeakHashMap())
@@ -56,7 +61,8 @@ object GhostDriver {
         var listener: ViewTreeObserver.OnGlobalLayoutListener? = null,
         var observer: ViewTreeObserver? = null,
         var attachListener: View.OnAttachStateChangeListener? = null,
-        var intensity: Float = 1f
+        var intensity: Float = 1f,
+        var clear: Boolean = false
     )
 
     private val retries: MutableMap<ViewGroup, RetryState> =
@@ -70,7 +76,8 @@ object GhostDriver {
         decor: ViewGroup,
         pkg: String,
         log: (String) -> Unit = {},
-        intensity: Float = 1f
+        intensity: Float = 1f,
+        clear: Boolean = false
     ): Boolean {
         if (decor.width <= 0 || decor.height <= 0) return false
         val mapping = mapTabs(decor) ?: return false
@@ -127,6 +134,7 @@ object GhostDriver {
         // views so glyphs/labels are never refracted, only the backdrop.
         val glass = KlyntGlassView(decor.context)
         glass.intensity = intensity
+        glass.clearMode = clear
         try {
             val profile = SocDetector.resolve(decor.context)
             val lowRam = isLowRamDevice(decor.context)
@@ -138,6 +146,7 @@ object GhostDriver {
         }
         val bar = KlyntGhostBar(decor.context).apply {
             chromeOnly = true
+            clearDimming = clear
             labels = mapping.labels
             onSlotTapped = { index ->
                 try {
@@ -163,6 +172,11 @@ object GhostDriver {
         }
         val state = GhostState(overlay, glass, bar, hidden, mapping.tabs, cover, pkg)
         states[decor] = state
+        // Materialize: lens bends in instead of fading in.
+        try {
+            glass.animateIntensityTo(intensity)
+        } catch (_: Throwable) {
+        }
         syncGeometry(decor, state)
         bindTracking(decor, state)
         disarmRetry(decor)
@@ -207,11 +221,12 @@ object GhostDriver {
         decor: ViewGroup,
         pkg: String,
         log: (String) -> Unit = {},
-        intensity: Float = 1f
+        intensity: Float = 1f,
+        clear: Boolean = false
     ) {
         if (states.containsKey(decor) || retries.containsKey(decor)) return
         if (!decor.isAttachedToWindow) return
-        val retry = RetryState(intensity = intensity)
+        val retry = RetryState(intensity = intensity, clear = clear)
         retries[decor] = retry
         var last = 0L
         val listener = ViewTreeObserver.OnGlobalLayoutListener {
@@ -223,7 +238,7 @@ object GhostDriver {
                     disarmRetry(decor)
                     return@OnGlobalLayoutListener
                 }
-                tryGhost(decor, pkg, log, retry.intensity)
+                tryGhost(decor, pkg, log, retry.intensity, retry.clear)
             } catch (_: Throwable) {
             }
         }
@@ -267,6 +282,15 @@ object GhostDriver {
     fun restore(decor: ViewGroup) {
         val state = states.remove(decor) ?: return
         try {
+            state.idleReset?.let { scrollHandler.removeCallbacks(it) }
+            state.idleReset = null
+            state.scrollListener?.let { listener ->
+                try {
+                    state.scrollObserver?.takeIf { it.isAlive }
+                        ?.removeOnScrollChangedListener(listener)
+                } catch (_: Throwable) {
+                }
+            }
             state.layoutListener?.let { listener ->
                 try {
                     state.observer?.takeIf { it.isAlive }
@@ -515,6 +539,33 @@ object GhostDriver {
             if (observer.isAlive) {
                 state.observer = observer
                 observer.addOnGlobalLayoutListener(listener)
+            }
+        } catch (_: Throwable) {
+        }
+        // iOS scroll behavior: tuck the bar while content moves, expand
+        // ~1.2s after it settles. Throttled; listener dies with restore.
+        val idle = Runnable {
+            try {
+                if (states[decor] === state) state.bar.setShrink(1f)
+            } catch (_: Throwable) {
+            }
+        }
+        state.idleReset = idle
+        val scrolled = ViewTreeObserver.OnScrollChangedListener {
+            try {
+                if (states[decor] !== state) return@OnScrollChangedListener
+                state.bar.setShrink(0.78f)
+                scrollHandler.removeCallbacks(idle)
+                scrollHandler.postDelayed(idle, 1200L)
+            } catch (_: Throwable) {
+            }
+        }
+        state.scrollListener = scrolled
+        try {
+            val observer = decor.viewTreeObserver
+            if (observer.isAlive) {
+                state.scrollObserver = observer
+                observer.addOnScrollChangedListener(scrolled)
             }
         } catch (_: Throwable) {
         }

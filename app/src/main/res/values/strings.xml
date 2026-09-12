@@ -22,6 +22,7 @@
     <string name="tune_corner">Corner radius</string>
     <string name="tune_pill">Pill</string>
     <string name="tune_blur">Backdrop blur</string>
+    <string name="tune_clear">Clear glass (Apple Clear)</string>
     <string name="tune_mode">Bar mode</string>
     <string name="mode_auto">Auto</string>
     <string name="mode_ghost">Force custom</string>

@@ -49,6 +49,10 @@ class RemotePrefs private constructor(
                 PrefsSchema.Feature.BLUR_ENABLED.defaultValue
             ),
             managerVersion = prefs.getString(PrefsSchema.MANAGER_VERSION_KEY, "?") ?: "?",
+            clear = prefs.getBoolean(
+                PrefsSchema.appKey(packageName, PrefsSchema.Feature.GLASS_CLEAR),
+                PrefsSchema.Feature.GLASS_CLEAR.defaultValue
+            ),
             ghostMode = try {
                 PrefsSchema.GhostMode.valueOf(
                     prefs.getString(PrefsSchema.ghostModeKey(packageName), "AUTO") ?: "AUTO"
@@ -87,7 +91,8 @@ data class GlassSettings(
     val cornerDp: Float,
     val blur: Boolean,
     val managerVersion: String = "?",
-    val ghostMode: PrefsSchema.GhostMode = PrefsSchema.GhostMode.AUTO
+    val ghostMode: PrefsSchema.GhostMode = PrefsSchema.GhostMode.AUTO,
+    val clear: Boolean = false
 ) {
     val active: Boolean get() = globalOn && appOn
 
@@ -95,5 +100,6 @@ data class GlassSettings(
     fun describe(): String =
         " mgr=$managerVersion i=${(intensity * 100).toInt()} " +
             "c=${if (cornerDp >= 999f) "pill" else cornerDp.toInt().toString()} " +
-            "b=${if (blur) 1 else 0}"
+            "b=${if (blur) 1 else 0}" +
+            (if (clear) " clear" else "")
 }

@@ -30,7 +30,8 @@ class KlyntGlassTest {
             "uniform float intensity",
             "uniform float dark",
             "uniform float2 press",
-            "uniform float pressAmount"
+            "uniform float pressAmount",
+            "uniform float clearMode"
         )
         required.forEach { assertTrue(KLYNT_GLASS_SHADER.contains(it), it) }
     }
