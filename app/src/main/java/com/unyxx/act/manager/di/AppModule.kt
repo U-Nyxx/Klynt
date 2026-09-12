@@ -45,6 +45,10 @@ object ServiceLocator {
             },
             notifyImmediately = false
         )
+        try {
+            writeManagerVersion(com.unyxx.act.BuildConfig.VERSION_NAME)
+        } catch (_: Throwable) {
+        }
         logEvent("Manager started")
     }
 
@@ -205,7 +209,13 @@ object ServiceLocator {
     }
 
     /** Queued remote write, replayed on the next binder connect. */
-    private data class PendingWrite(val isFloat: Boolean, val key: String, val b: Boolean, val f: Float)
+    private data class PendingWrite(
+        val kind: Int, // 0 = boolean, 1 = float, 2 = string
+        val key: String,
+        val b: Boolean = false,
+        val f: Float = 0f,
+        val s: String = ""
+    )
 
     private val pendingLock = Any()
     private val pendingRemote = ArrayDeque<PendingWrite>()
@@ -228,7 +238,11 @@ object ServiceLocator {
         try {
             val remote = service.getRemotePreferences(PrefsSchema.PREFS_FILE)?.edit() ?: return
             batch.forEach {
-                if (it.isFloat) remote.putFloat(it.key, it.f) else remote.putBoolean(it.key, it.b)
+                when (it.kind) {
+                    1 -> remote.putFloat(it.key, it.f)
+                    2 -> remote.putString(it.key, it.s)
+                    else -> remote.putBoolean(it.key, it.b)
+                }
             }
             remote.apply()
             Logger.d { "Replayed ${batch.size} queued remote writes" }
@@ -236,6 +250,27 @@ object ServiceLocator {
             synchronized(pendingLock) {
                 batch.forEach { enqueueRemote(it) }
             }
+        }
+    }
+
+    /** Manager version stamp so hook logs identify the driving build. */
+    fun writeManagerVersion(version: String) {
+        writeRemoteString(PrefsSchema.MANAGER_VERSION_KEY, version)
+    }
+
+    private fun writeRemoteString(key: String, value: String) {
+        val service = KlyntApplication.xposedService
+        if (service == null) {
+            enqueueRemote(PendingWrite(2, key, s = value))
+            return
+        }
+        try {
+            service.getRemotePreferences(PrefsSchema.PREFS_FILE)
+                ?.edit()
+                ?.putString(key, value)
+                ?.apply()
+        } catch (_: Throwable) {
+            enqueueRemote(PendingWrite(2, key, s = value))
         }
     }
 
@@ -247,7 +282,7 @@ object ServiceLocator {
     private fun writeRemoteBoolean(key: String, value: Boolean) {
         val service = KlyntApplication.xposedService
         if (service == null) {
-            enqueueRemote(PendingWrite(false, key, value, 0f))
+            enqueueRemote(PendingWrite(0, key, b = value))
             return
         }
         try {
@@ -256,14 +291,14 @@ object ServiceLocator {
                 ?.putBoolean(key, value)
                 ?.apply()
         } catch (_: Throwable) {
-            enqueueRemote(PendingWrite(false, key, value, 0f))
+            enqueueRemote(PendingWrite(0, key, b = value))
         }
     }
 
     private fun writeRemoteFloat(key: String, value: Float) {
         val service = KlyntApplication.xposedService
         if (service == null) {
-            enqueueRemote(PendingWrite(true, key, false, value))
+            enqueueRemote(PendingWrite(1, key, f = value))
             return
         }
         try {
@@ -272,7 +307,7 @@ object ServiceLocator {
                 ?.putFloat(key, value)
                 ?.apply()
         } catch (_: Throwable) {
-            enqueueRemote(PendingWrite(true, key, false, value))
+            enqueueRemote(PendingWrite(1, key, f = value))
         }
     }
 

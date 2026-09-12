@@ -3,6 +3,7 @@ package com.unyxx.act.xposed.hooks.telegram
 import android.app.Activity
 import android.view.View
 import android.view.ViewGroup
+import com.unyxx.act.liquidglass.ghost.GhostDriver
 import com.unyxx.act.liquidglass.injection.BottomNavDiscovery
 import com.unyxx.act.liquidglass.injection.BottomNavWrapper
 import com.unyxx.act.xposed.prefs.GlassSettings
@@ -49,8 +50,15 @@ object TelegramBottomNavHook {
         val decorView = activity.window?.decorView as? ViewGroup ?: return
         val settings = prefs.glassSettings(packageName)
         if (!settings.active) {
+            GhostDriver.restore(decorView)
             BottomNavWrapper.unwrapAll(decorView, packageName)
             return
+        }
+        // Ghost-first: our own bar driving the real tabs (ROM-proof
+        // pixels). Falls through to glass overlay when no tab row maps.
+        try {
+            if (GhostDriver.tryGhost(decorView, packageName, log)) return
+        } catch (_: Throwable) {
         }
         BottomNavDiscovery.discover(
             decorView,
@@ -93,7 +101,7 @@ object TelegramBottomNavHook {
         val main = all
             .filter { v -> v.isLaidOut && !BottomNavWrapper.isOurs(v) && isMainTabs(v) }
             .maxByOrNull { screenBottom(it) }
-        if (main != null) return wrap(main, pkg, log, settings)
+        if (main != null) return wrap(main, pkg, log, settings, "tier=main")
 
         val candidates = all.filter { v ->
             v.isLaidOut && !BottomNavWrapper.isOurs(v) && !isDenied(v)
@@ -106,7 +114,7 @@ object TelegramBottomNavHook {
                     isBottomAnchored(v, root)
             }
             .maxByOrNull { screenBottom(it) }
-        if (byClass != null) return wrap(byClass, pkg, log, settings)
+        if (byClass != null) return wrap(byClass, pkg, log, settings, "tier=class")
 
         // 1.5) Semantics signal (obfuscation-proof): a real tab bar is a
         // row of labeled buttons (Chats/Contacts/Settings…); sticker
@@ -118,16 +126,34 @@ object TelegramBottomNavHook {
                     countLabeled(v) >= 3
             }
             .maxByOrNull { screenBottom(it) }
-        if (bySemantics != null) return wrap(bySemantics, pkg, log, settings)
+        if (bySemantics != null) return wrap(bySemantics, pkg, log, settings, "tier=semantics")
 
         // 2) Density-independent fallback: 48–80dp tall, near-full width,
         //    bottom edge inside the lower 15% of the screen.
         val target = candidates
             .filter { v -> isBottomAnchored(v, root) && isNavSized(v, root, density) }
             .maxByOrNull { screenBottom(it) }
-        if (target != null) return wrap(target, pkg, log, settings)
+        if (target != null) return wrap(target, pkg, log, settings, "tier=size")
 
+        // Data-driven miss: log the nearest laid-out view so the next
+        // iteration knows exactly what the bar looks like on this build.
+        logNearMiss(root, candidates, density, log)
         return false
+    }
+
+    private fun logNearMiss(root: ViewGroup, candidates: List<View>, density: Float, log: (String) -> Unit) {
+        try {
+            val best = candidates.maxByOrNull { screenBottom(it) } ?: run {
+                log("Miss: zero laid-out candidates under decor ${root.width}x${root.height}")
+                return
+            }
+            val (w, h) = laidOutSize(best)
+            val hDp = BottomNavDiscovery.pxToDp(h, density)
+            val screenH = root.resources.displayMetrics.heightPixels
+            val anchor = if (screenH > 0) screenBottom(best).toFloat() / screenH else -1f
+            log("Miss: nearest=${best.javaClass.name} ${w}x${h} (${hDp.toInt()}dp) anchor=${"%.2f".format(anchor)} wFrac=${"%.2f".format(w.toFloat() / root.width.coerceAtLeast(1))}")
+        } catch (_: Throwable) {
+        }
     }
 
     /**
@@ -154,6 +180,24 @@ object TelegramBottomNavHook {
             }
         }
         return count
+    }
+
+    /**
+     * True when this ROM disables HWUI blur system-wide
+     * (`debug.hwui.disable_blur`, seen on Infinix XOS). Blur-based glass
+     * renders NOTHING there — the ghost bar exists precisely for this.
+     * Read-only prop access, never throws.
+     */
+    fun isSystemBlurDisabled(): Boolean {
+        return try {
+            val c = Class.forName("android.os.SystemProperties")
+            val get = c.getDeclaredMethod(
+                "get", String::class.java, String::class.java
+            )
+            get.invoke(null, "debug.hwui.disable_blur", "false") == "true"
+        } catch (_: Throwable) {
+            false
+        }
     }
 
     private fun isMainTabs(view: View): Boolean {
@@ -194,13 +238,19 @@ object TelegramBottomNavHook {
         view: View,
         pkg: String,
         log: (String) -> Unit,
-        settings: GlassSettings
+        settings: GlassSettings,
+        tier: String = "tier=?"
     ): Boolean {
         if (BottomNavWrapper.isInjected(view, pkg)) return true
         BottomNavWrapper(view.context).wrap(
             view, pkg, settings.intensity, settings.cornerDp, settings.blur
         )
-        log("Injected Liquid Glass into $pkg at ${view.javaClass.name} (target ${targetVersion(view, pkg)})")
+        val blurOff = try {
+            isSystemBlurDisabled()
+        } catch (_: Throwable) {
+            false
+        }
+        log("Injected Liquid Glass into $pkg at ${view.javaClass.name} ($tier target ${targetVersion(view, pkg)}${settings.describe()} sysBlurOff=$blurOff)")
         return true
     }
 

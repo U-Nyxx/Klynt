@@ -113,6 +113,22 @@ object TwitterBottomNavHook {
             .maxByOrNull { screenBottom(it) }
         if (target != null) return wrap(target, pkg, log, settings)
 
+        // Data-driven miss: nearest laid-out view so the next iteration
+        // knows what X's bar looks like on this build.
+        try {
+            val density = root.resources.displayMetrics.density
+            val screenH = root.resources.displayMetrics.heightPixels
+            val best = candidates.maxByOrNull { screenBottom(it) }
+            if (best == null) {
+                log("Miss: zero laid-out candidates under decor ${root.width}x${root.height} in $pkg")
+            } else {
+                val (w, h) = laidOutSize(best)
+                val hDp = BottomNavDiscovery.pxToDp(h, density)
+                val anchor = if (screenH > 0) screenBottom(best).toFloat() / screenH else -1f
+                log("Miss: nearest=${best.javaClass.name} ${w}x${h} (${hDp.toInt()}dp) anchor=${"%.2f".format(anchor)} labeled=${countLabeled(best)}")
+            }
+        } catch (_: Throwable) {
+        }
         return false
     }
 

@@ -396,6 +396,16 @@ private fun buildDiagnostics(context: android.content.Context): String {
         sb.appendLine("--- last crash ---")
         sb.appendLine(crash)
     }
+    // ROM-level blur kill-switch (no root needed to READ the prop).
+    // blur=off explains invisible glass better than any hook theory.
+    try {
+        val proc = Runtime.getRuntime().exec(arrayOf("getprop", "debug.hwui.disable_blur"))
+        val out = proc.inputStream.bufferedReader().readText().trim()
+        proc.waitFor()
+        sb.appendLine("sysBlurDisabled=${out == "true"}")
+    } catch (_: Throwable) {
+        sb.appendLine("sysBlurDisabled=?")
+    }
     return sb.toString()
 }
 

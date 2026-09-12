@@ -47,7 +47,8 @@ class RemotePrefs private constructor(
             blur = prefs.getBoolean(
                 PrefsSchema.appKey(packageName, PrefsSchema.Feature.BLUR_ENABLED),
                 PrefsSchema.Feature.BLUR_ENABLED.defaultValue
-            )
+            ),
+            managerVersion = prefs.getString(PrefsSchema.MANAGER_VERSION_KEY, "?")
         )
     }
 
@@ -77,7 +78,14 @@ data class GlassSettings(
     val appOn: Boolean,
     val intensity: Float,
     val cornerDp: Float,
-    val blur: Boolean
+    val blur: Boolean,
+    val managerVersion: String = "?"
 ) {
     val active: Boolean get() = globalOn && appOn
+
+    /** Compact render context for inject logs (version + tuning). */
+    fun describe(): String =
+        " mgr=$managerVersion i=${(intensity * 100).toInt()} " +
+            "c=${if (cornerDp >= 999f) "pill" else cornerDp.toInt().toString()} " +
+            "b=${if (blur) 1 else 0}"
 }

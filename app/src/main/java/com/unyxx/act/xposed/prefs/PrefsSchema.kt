@@ -8,6 +8,8 @@ object PrefsSchema {
     // Global toggles
     const val GLOBAL_LIQUID_GLASS_ENABLED = "global_liquid_glass_enabled"
     const val MODULE_ACTIVE = "module_active"
+    /** Manager versionName, written at manager start, read by hooks for logs. */
+    const val MANAGER_VERSION_KEY = "manager_version"
     const val LOG_LEVEL = "log_level"
     const val AUTO_START_ENABLED = "auto_start_enabled"
 
