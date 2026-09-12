@@ -100,7 +100,7 @@ class BottomNavWrapper @JvmOverloads constructor(
     fun reconfigure(intensity: Float, cornerDp: Float, blur: Boolean) {
         try {
             glass?.configure(
-                com.unyxx.act.util.SocDetector.detect(),
+                com.unyxx.act.util.SocDetector.resolve(context),
                 context,
                 intensity.coerceIn(0f, 1f),
                 cornerDp,
@@ -142,7 +142,7 @@ class BottomNavWrapper @JvmOverloads constructor(
             isClickable = false
             isFocusable = false
             configure(
-                com.unyxx.act.util.SocDetector.detect(),
+                com.unyxx.act.util.SocDetector.resolve(context),
                 context,
                 intensity.coerceIn(0f, 1f),
                 cornerDp,

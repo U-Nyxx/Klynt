@@ -24,7 +24,9 @@ class KlyntLiquidGlassView @JvmOverloads constructor(
     private var referenceView: View? = null
 
     init {
-        configure(SocDetector.detect(), context)
+        // No configure() here: the wrapper configures exactly once with
+        // the resolved profile + user settings. Double-configure (init
+        // then wrap) built the blur pipeline twice per injection.
     }
 
     /**
@@ -45,6 +47,19 @@ class KlyntLiquidGlassView @JvmOverloads constructor(
         val k = intensity.coerceIn(0f, 1f)
         material = GlassMaterial.REGULAR
         cornerRadius = if (cornerDp >= 999f) 999f else cornerDp.dpToPx(context)
+        // The SoC-chosen blur backend (was computed but never applied).
+        try {
+            blurMethod = profile.preferredBlurMethod
+        } catch (_: Throwable) {
+        }
+        // Cheaper capture + pipeline on weak tiers. Verified against the
+        // v2.0.8 AAR surface (setEnableOptimizedCapture/setHighQuality/
+        // setEnableShadow/setEnableChromaticDispersion all exist).
+        try {
+            enableOptimizedCapture = true
+            highQuality = profile.highQuality && !fallback
+        } catch (_: Throwable) {
+        }
         if (fallback || k <= 0f) {
             // Frosted fallback: blur only, no lens — safe on Mali
             // mid-range, battery saver, reduced motion and high contrast.
@@ -53,6 +68,11 @@ class KlyntLiquidGlassView @JvmOverloads constructor(
             dispersionStrength = 0f
             enableSensorHighlight = false
             enableAdaptiveTint = false
+            try {
+                enableChromaticDispersion = false
+                enableShadow = false
+            } catch (_: Throwable) {
+            }
         } else {
             refractionHeight = profile.refractionDp.dpToPx(context) * k
             bevelWidth = profile.bevelDp.dpToPx(context)
@@ -60,9 +80,11 @@ class KlyntLiquidGlassView @JvmOverloads constructor(
             enableSensorHighlight = false
             enableAdaptiveTint = true
         }
-        // Backdrop scrolls under a bottom bar, so it must re-capture.
+        // Static backdrop on weak tiers: per-frame re-capture is the top
+        // RAM/GC cost and frosted blur barely changes while scrolling.
+        // Full-lens tiers keep dynamic (content must track under glass).
+        enableDynamicBackground = profile.dynamicBackdrop && !fallback
         // Blur toggle is user-controlled; the frosted path always blurs.
-        enableDynamicBackground = true
         enableBackdropBlur = blur || fallback || k <= 0f
         saturation = 140f
     }

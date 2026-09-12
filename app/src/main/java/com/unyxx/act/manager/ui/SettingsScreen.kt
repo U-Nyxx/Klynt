@@ -438,7 +438,19 @@ private fun GlassPreview() {
         }
         if (glassOk) {
             AndroidView(
-                factory = { KlyntLiquidGlassView(it) },
+                factory = {
+                    KlyntLiquidGlassView(it).apply {
+                        // No auto-configure in init anymore (single-configure
+                        // rule): the preview configures explicitly here.
+                        try {
+                            configure(
+                                com.unyxx.act.util.SocDetector.resolve(it),
+                                it
+                            )
+                        } catch (_: Throwable) {
+                        }
+                    }
+                },
                 modifier = Modifier
                     .fillMaxWidth(0.6f)
                     .height(56.dp)
