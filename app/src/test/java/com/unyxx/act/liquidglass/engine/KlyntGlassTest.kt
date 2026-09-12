@@ -36,7 +36,7 @@ class KlyntGlassTest {
     }
 
     @Test
-    fun `shader stays Mali-safe: no loops, balanced braces`() {
+    fun `shader stays Mali-safe with no loops and balanced braces`() {
         // Blur comes from the RenderEffect chain, never in-shader taps:
         // dynamic loops break strict AGSL compilers (Mali).
         val code = KLYNT_GLASS_SHADER.replace("uniform shader backdrop", "")
