@@ -150,7 +150,8 @@ class BottomNavWrapper @JvmOverloads constructor(
         glass = KlyntGlassView(context).apply {
             isClickable = false
             isFocusable = false
-            intensity = intensity.coerceIn(0f, 1f)
+            // Qualified: the wrap() param shadows the member for assignment.
+            this.intensity = intensity.coerceIn(0f, 1f)
             val profile = com.unyxx.act.util.SocDetector.resolve(context)
             tier = if (!blur) {
                 KlyntTier.SCRIM

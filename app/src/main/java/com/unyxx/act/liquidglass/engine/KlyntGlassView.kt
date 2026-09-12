@@ -106,7 +106,7 @@ class KlyntGlassView @JvmOverloads constructor(
     private fun rebuildEffect() {
         if (tier != KlyntTier.SHADER) {
             shaderOk = false
-            renderEffect = null
+            setRenderEffect(null)
             invalidate()
             return
         }
@@ -115,7 +115,7 @@ class KlyntGlassView @JvmOverloads constructor(
             shader = s
             val blur = RenderEffect.createBlurEffect(18f, 18f, Shader.TileMode.CLAMP)
             val glass = RenderEffect.createRuntimeShaderEffect(s, "backdrop")
-            renderEffect = RenderEffect.createChainEffect(glass, blur)
+            setRenderEffect(RenderEffect.createChainEffect(glass, blur))
             shaderOk = true
             pushUniforms()
         } catch (_: Throwable) {
@@ -127,7 +127,7 @@ class KlyntGlassView @JvmOverloads constructor(
         shaderOk = false
         shader = null
         try {
-            renderEffect = null
+            setRenderEffect(null)
         } catch (_: Throwable) {
         }
         tier = KlyntTier.SCRIM
