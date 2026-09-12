@@ -120,9 +120,13 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
 
     // NOTE (diet): coil, work-runtime, navigation-compose,
-    // core-splashscreen, material (MDC views), retrofit + converter-gson
-    // were removed — zero usages in main source (verified). Update check
-    // uses OkHttp + Gson directly.
+    // core-splashscreen, retrofit + converter-gson were removed — zero
+    // usages in main source (verified). Update check uses OkHttp + Gson.
+    // MDC STAYS despite zero direct usage: QWEA0 LiquidGlassDialogBuilder
+    // references MaterialAlertDialogBuilder and R8 hard-fails without it
+    // (proven by v1.0.4 tag build). ~1.5 MB insurance against crashes
+    // inside target apps — the worst possible place for NoClassDefFound.
+    implementation("com.google.android.material:material:1.12.0")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
 
     // JSON
