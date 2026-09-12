@@ -6,7 +6,6 @@ import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -39,18 +38,17 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.viewinterop.AndroidView
-import com.unyxx.act.liquidglass.KlyntLiquidGlassView
 import kotlin.math.roundToInt
 
 /**
- * Floating glass capsule bottom bar (LSPosed-manager look, iOS feel).
+ * Floating capsule bottom bar (LSPosed-manager look, iOS feel).
  *
- * Layers bottom-to-top: live QWEA0 glass (real backdrop blur, same
- * engine as the hook overlay) → 1dp light border → top specular
+ * Layers bottom-to-top: tonal scrim → 1dp border → top specular
  * highlight → one shared pill tracking the page fractionally (spring
  * on tap, 1:1 while dragging) → icon + label tabs.
- * Active tab uses filled glyphs in lavender, inactive outlined in white.
+ * Active tab uses filled glyphs, inactive outlined.
+ * Deliberately no native glass here: the bar must never crash the
+ * manager, glass stays exclusive to the hook overlay.
  *
  * @param selectedPage fractional page position (page + offset) so the
  * pill follows the finger during pager swipes.
@@ -102,10 +100,19 @@ fun LiquidGlassTabBar(
             .height(76.dp)
             .clip(capsule)
     ) {
-        // Live glass backdrop (own engine, zero new dependencies).
-        AndroidView(
-            factory = { context -> KlyntLiquidGlassView(context) },
-            modifier = Modifier.matchParentSize()
+        // Tonal scrim (theme-aware) instead of live blur: crash-proof.
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .background(
+                    Brush.verticalGradient(
+                        listOf(
+                            MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.92f),
+                            MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.95f)
+                        )
+                    ),
+                    capsule
+                )
         )
         // 1dp light border.
         Box(

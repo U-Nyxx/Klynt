@@ -38,12 +38,11 @@
 ## Requirements
 
 - Android 11+ (API 30)
-- Root + LSPosed with libxposed API 101 or newer
-- `api101` APK works on 101 and 102 frameworks; `api102` APK needs a 102 framework (hot-reload)
+- Root + LSPosed with libxposed API 101 or newer (single build runs on 101 and 102 frameworks)
 
 ## Installation
 
-1. Download `klynt-<ver>-api101-ArJk.apk` (any API 101+ framework) or `klynt-<ver>-api102-ArJk.apk` (newest LSPosed, hot-reload) from [Releases](https://github.com/U-Nyxx/Klynt/releases/latest)
+1. Download `klynt-<ver>-ArJk.apk` from [Releases](https://github.com/U-Nyxx/Klynt/releases/latest) (single build, libxposed API 101+, runs on 101 and 102 frameworks)
 2. Install the APK
 3. Open **LSPosed Manager** → **Modules**
 4. Enable **KLYNT** → tick target apps (or tap “Aktifkan scope” inside the manager)

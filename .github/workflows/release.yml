@@ -48,33 +48,29 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      - name: Build Release APKs (both flavors)
+      - name: Build Release APK
         run: ./gradlew assembleRelease
         env:
           STORE_PASSWORD: ${{ secrets.APP_SIGN_PWD }}
           KEY_ALIAS: ${{ secrets.APP_SIGN_ALIAS }}
           KEY_PASSWORD: ${{ secrets.APP_SIGN_PWD }}
 
-      - name: Rename APKs
+      - name: Rename APK
         run: |
+          cd app/build/outputs/apk/release/
           VERSION=${GITHUB_REF_NAME#v}
-          mv app/build/outputs/apk/api101/release/app-api101-release.apk "app/build/outputs/apk/api101/release/klynt-${VERSION}-api101-ArJk.apk"
-          mv app/build/outputs/apk/api102/release/app-api102-release.apk "app/build/outputs/apk/api102/release/klynt-${VERSION}-api102-ArJk.apk"
+          mv app-release.apk klynt-${VERSION}-ArJk.apk
 
-      - name: Upload Artifacts
+      - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: Klynt-${{ github.ref_name }}
-          path: |
-            app/build/outputs/apk/api101/release/klynt-*.apk
-            app/build/outputs/apk/api102/release/klynt-*.apk
+          path: app/build/outputs/apk/release/klynt-*.apk
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            app/build/outputs/apk/api101/release/klynt-*.apk
-            app/build/outputs/apk/api102/release/klynt-*.apk
+          files: app/build/outputs/apk/release/klynt-*.apk
           generate_release_notes: true
           body: |
             ## KLYNT ${{ github.ref_name }}
@@ -83,15 +79,12 @@ jobs:
             - 26 Telegram variants + Twitter/X
             - iOS-style pill blur, per-SoC adaptive quality
 
-            ### Which file?
-            - `klynt-${{ github.ref_name }}-api101-ArJk.apk` — any LSPosed with API 101+ (broadest)
-            - `klynt-${{ github.ref_name }}-api102-ArJk.apk` — newest LSPosed only (hot-reload)
-
             ### Requirements
             - Android 11+ (API 30)
-            - Root + LSPosed (root-only, no LSPatch)
+            - Root + LSPosed with libxposed API 101+ (root-only, no LSPatch)
 
             ### Installation
-            1. Download the matching APK above
-            2. Install & enable scope in LSPosed manager
-            3. Force-stop the target app and reopen it
+            1. If KLYNT is already installed: disable it in LSPosed, reboot, then uninstall the old APK first
+            2. Download `klynt-${{ github.ref_name }}-ArJk.apk`
+            3. Install & enable scope in LSPosed manager
+            4. Force-stop the target app and reopen it
