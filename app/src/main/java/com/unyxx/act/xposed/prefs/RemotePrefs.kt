@@ -48,7 +48,14 @@ class RemotePrefs private constructor(
                 PrefsSchema.appKey(packageName, PrefsSchema.Feature.BLUR_ENABLED),
                 PrefsSchema.Feature.BLUR_ENABLED.defaultValue
             ),
-            managerVersion = prefs.getString(PrefsSchema.MANAGER_VERSION_KEY, "?") ?: "?"
+            managerVersion = prefs.getString(PrefsSchema.MANAGER_VERSION_KEY, "?") ?: "?",
+            ghostMode = try {
+                PrefsSchema.GhostMode.valueOf(
+                    prefs.getString(PrefsSchema.ghostModeKey(packageName), "AUTO") ?: "AUTO"
+                )
+            } catch (_: Throwable) {
+                PrefsSchema.GhostMode.AUTO
+            }
         )
     }
 
@@ -79,7 +86,8 @@ data class GlassSettings(
     val intensity: Float,
     val cornerDp: Float,
     val blur: Boolean,
-    val managerVersion: String = "?"
+    val managerVersion: String = "?",
+    val ghostMode: PrefsSchema.GhostMode = PrefsSchema.GhostMode.AUTO
 ) {
     val active: Boolean get() = globalOn && appOn
 

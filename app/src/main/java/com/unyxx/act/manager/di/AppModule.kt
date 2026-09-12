@@ -258,6 +258,23 @@ object ServiceLocator {
         writeRemoteString(PrefsSchema.MANAGER_VERSION_KEY, version)
     }
 
+    /** Per-app ghost bar mode, mirrored to hooks. */
+    fun getGhostMode(packageName: String): PrefsSchema.GhostMode {
+        return try {
+            PrefsSchema.GhostMode.valueOf(
+                prefs?.getString(PrefsSchema.ghostModeKey(packageName), "AUTO") ?: "AUTO"
+            )
+        } catch (_: Throwable) {
+            PrefsSchema.GhostMode.AUTO
+        }
+    }
+
+    fun setGhostMode(packageName: String, mode: PrefsSchema.GhostMode) {
+        prefs?.edit()?.putString(PrefsSchema.ghostModeKey(packageName), mode.name)?.apply()
+        writeRemoteString(PrefsSchema.ghostModeKey(packageName), mode.name)
+        Logger.d { "Set ghost mode $packageName = $mode" }
+    }
+
     private fun writeRemoteString(key: String, value: String) {
         val service = KlyntApplication.xposedService
         if (service == null) {

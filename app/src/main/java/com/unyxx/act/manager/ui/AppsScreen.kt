@@ -120,7 +120,8 @@ fun AppsScreen(viewModel: AppsViewModel) {
                     onRequestScope = { pkg -> viewModel.requestScope(pkg) },
                     onIntensity = { pkg, v -> viewModel.setGlassIntensity(pkg, v) },
                     onCorner = { pkg, v -> viewModel.setGlassCorner(pkg, v) },
-                    onBlur = { pkg, v -> viewModel.toggleBlur(pkg, v) }
+                    onBlur = { pkg, v -> viewModel.toggleBlur(pkg, v) },
+                    onMode = { pkg, m -> viewModel.setGhostMode(pkg, m) }
                 )
             }
 
@@ -133,7 +134,8 @@ fun AppsScreen(viewModel: AppsViewModel) {
                     onRequestScope = { pkg -> viewModel.requestScope(pkg) },
                     onIntensity = { pkg, v -> viewModel.setGlassIntensity(pkg, v) },
                     onCorner = { pkg, v -> viewModel.setGlassCorner(pkg, v) },
-                    onBlur = { pkg, v -> viewModel.toggleBlur(pkg, v) }
+                    onBlur = { pkg, v -> viewModel.toggleBlur(pkg, v) },
+                    onMode = { pkg, m -> viewModel.setGhostMode(pkg, m) }
                 )
             }
         }
@@ -149,7 +151,8 @@ fun AppFamilySection(
     onRequestScope: (String) -> Unit,
     onIntensity: (String, Float) -> Unit,
     onCorner: (String, Float) -> Unit,
-    onBlur: (String, Boolean) -> Unit
+    onBlur: (String, Boolean) -> Unit,
+    onMode: (String, com.unyxx.act.xposed.prefs.PrefsSchema.GhostMode) -> Unit
 ) {
     if (apps.isEmpty()) return
 
@@ -177,7 +180,8 @@ fun AppFamilySection(
                     onRequestScope = onRequestScope,
                     onIntensity = onIntensity,
                     onCorner = onCorner,
-                    onBlur = onBlur
+                    onBlur = onBlur,
+                    onMode = onMode
                 )
             }
         }
@@ -191,7 +195,8 @@ fun AppRow(
     onRequestScope: (String) -> Unit,
     onIntensity: (String, Float) -> Unit = { _, _ -> },
     onCorner: (String, Float) -> Unit = { _, _ -> },
-    onBlur: (String, Boolean) -> Unit = { _, _ -> }
+    onBlur: (String, Boolean) -> Unit = { _, _ -> },
+    onMode: (String, com.unyxx.act.xposed.prefs.PrefsSchema.GhostMode) -> Unit = { _, _ -> }
 ) {
     var expanded by remember(app.packageName) { mutableStateOf(false) }
     Card(
@@ -293,7 +298,8 @@ fun AppRow(
                     app = app,
                     onIntensity = onIntensity,
                     onCorner = onCorner,
-                    onBlur = onBlur
+                    onBlur = onBlur,
+                    onMode = onMode
                 )
             }
         }
@@ -301,13 +307,14 @@ fun AppRow(
     }
 }
 
-/** Expanded per-app glass tuning: intensity, corner radius, blur. */
+/** Expanded per-app tuning: bar mode, intensity, corner radius, blur. */
 @Composable
 private fun TunePanel(
     app: com.unyxx.act.manager.viewmodel.AppUiState,
     onIntensity: (String, Float) -> Unit,
     onCorner: (String, Float) -> Unit,
-    onBlur: (String, Boolean) -> Unit
+    onBlur: (String, Boolean) -> Unit,
+    onMode: (String, com.unyxx.act.xposed.prefs.PrefsSchema.GhostMode) -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -315,6 +322,10 @@ private fun TunePanel(
             .padding(start = 12.dp, end = 12.dp, bottom = 12.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
+        ModeSelector(
+            current = app.ghostMode,
+            onSelect = { onMode(app.packageName, it) }
+        )
         TuneSlider(
             label = stringResource(R.string.tune_intensity),
             valueLabel = "${(app.intensity * 100).toInt()}%",
@@ -353,6 +364,49 @@ private fun TunePanel(
                 checked = app.blurEnabled,
                 onCheckedChange = { onBlur(app.packageName, it) }
             )
+        }
+    }
+}
+
+/** Three-way bar mode: ghost-first auto, forced custom, glass only. */
+@Composable
+private fun ModeSelector(
+    current: com.unyxx.act.xposed.prefs.PrefsSchema.GhostMode,
+    onSelect: (com.unyxx.act.xposed.prefs.PrefsSchema.GhostMode) -> Unit
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            stringResource(R.string.tune_mode),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            val modes = listOf(
+                com.unyxx.act.xposed.prefs.PrefsSchema.GhostMode.AUTO to stringResource(R.string.mode_auto),
+                com.unyxx.act.xposed.prefs.PrefsSchema.GhostMode.FORCE_GHOST to stringResource(R.string.mode_ghost),
+                com.unyxx.act.xposed.prefs.PrefsSchema.GhostMode.GLASS_ONLY to stringResource(R.string.mode_glass)
+            )
+            modes.forEach { (mode, label) ->
+                val selected = mode == current
+                if (selected) {
+                    androidx.compose.material3.FilledTonalButton(
+                        onClick = { onSelect(mode) },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(label, maxLines = 1)
+                    }
+                } else {
+                    androidx.compose.material3.OutlinedButton(
+                        onClick = { onSelect(mode) },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(label, maxLines = 1)
+                    }
+                }
+            }
         }
     }
 }

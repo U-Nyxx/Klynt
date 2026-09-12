@@ -50,15 +50,29 @@ object TelegramBottomNavHook {
         val decorView = activity.window?.decorView as? ViewGroup ?: return
         val settings = prefs.glassSettings(packageName)
         if (!settings.active) {
+            GhostDriver.disarmRetry(decorView)
             GhostDriver.restore(decorView)
             BottomNavWrapper.unwrapAll(decorView, packageName)
             return
         }
-        // Ghost-first: our own bar driving the real tabs (ROM-proof
-        // pixels). Falls through to glass overlay when no tab row maps.
-        try {
-            if (GhostDriver.tryGhost(decorView, packageName, log)) return
-        } catch (_: Throwable) {
+        val forceGhost =
+            settings.ghostMode == com.unyxx.act.xposed.prefs.PrefsSchema.GhostMode.FORCE_GHOST
+        val glassOnly =
+            settings.ghostMode == com.unyxx.act.xposed.prefs.PrefsSchema.GhostMode.GLASS_ONLY
+        if (!glassOnly) {
+            // Ghost-first: our own bar driving the real tabs (ROM-proof
+            // pixels). FORCE_GHOST never falls through to glass.
+            try {
+                if (GhostDriver.tryGhost(decorView, packageName, log)) return
+            } catch (_: Throwable) {
+            }
+            if (forceGhost) {
+                GhostDriver.ensureRetryArmed(decorView, packageName, log)
+                return
+            }
+            // AUTO: arm the retry so a later-built tab row still ghosts
+            // (instead of glass winning permanently on an early miss).
+            GhostDriver.ensureRetryArmed(decorView, packageName, log)
         }
         BottomNavDiscovery.discover(
             decorView,

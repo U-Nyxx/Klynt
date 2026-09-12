@@ -43,11 +43,20 @@ object UpdateRepository {
     private fun prefs(context: Context) =
         context.getSharedPreferences(PrefsSchema.PREFS_FILE, Context.MODE_PRIVATE)
 
-    private fun localVersion(context: Context): String {
+    fun localVersion(context: Context): String {
         return try {
             context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "1.0.1"
         } catch (_: Exception) {
             "1.0.1"
+        }
+    }
+
+    /** Epoch ms of the last check (cache stamp), 0 when never checked. */
+    fun lastCheckMs(context: Context): Long {
+        return try {
+            prefs(context).getLong(KEY_CHECK_MS, 0L)
+        } catch (_: Throwable) {
+            0L
         }
     }
 

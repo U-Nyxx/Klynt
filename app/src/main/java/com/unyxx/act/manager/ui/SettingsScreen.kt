@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Info
@@ -26,7 +27,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.viewinterop.AndroidView
-import com.unyxx.act.liquidglass.KlyntLiquidGlassView
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -146,15 +146,36 @@ private fun UpdateSection(
     onCancel: () -> Unit,
     onInstall: () -> Unit
 ) {
+    val context = LocalContext.current
+    // Installed version + last-check stamp: update info must show
+    // BOTH sides (local → remote), never remote alone.
+    val localVersion = remember {
+        com.unyxx.act.manager.update.UpdateRepository.localVersion(context)
+    }
+    val checkedAt = remember(state) {
+        val ms = com.unyxx.act.manager.update.UpdateRepository.lastCheckMs(context)
+        if (ms > 0L) {
+            java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
+                .format(java.util.Date(ms))
+        } else null
+    }
     SettingsSection(title = "Update", icon = Icons.Filled.Download) {
         when (state) {
             is UpdateState.Idle, is UpdateState.Checking -> {
                 SettingInfo(
-                    title = if (state is UpdateState.Checking) "Memeriksa…" else "Belum diperiksa",
-                    subtitle = "Cek rilis GitHub terbaru"
+                    title = if (state is UpdateState.Checking) {
+                        stringResource(R.string.update_checking)
+                    } else {
+                        stringResource(R.string.update_idle)
+                    },
+                    subtitle = stringResource(R.string.update_check_sub)
                 )
                 UpdateButton(
-                    label = if (state is UpdateState.Checking) "Memeriksa…" else "Periksa pembaruan",
+                    label = if (state is UpdateState.Checking) {
+                        stringResource(R.string.update_checking)
+                    } else {
+                        stringResource(R.string.update_check_btn)
+                    },
                     icon = Icons.Filled.Refresh,
                     enabled = state !is UpdateState.Checking,
                     onClick = onCheck
@@ -162,11 +183,13 @@ private fun UpdateSection(
             }
             is UpdateState.UpToDate -> {
                 SettingInfo(
-                    title = "Sudah terbaru",
-                    subtitle = "v${state.version}"
+                    title = stringResource(R.string.update_uptodate),
+                    subtitle = stringResource(
+                        R.string.update_local_remote, "v$localVersion", "v${state.version}"
+                    ) + (checkedAt?.let { " · " + stringResource(R.string.update_checked_at, it) } ?: "")
                 )
                 UpdateButton(
-                    label = "Periksa lagi",
+                    label = stringResource(R.string.update_check_again),
                     icon = Icons.Filled.Refresh,
                     enabled = true,
                     onClick = onCheck
@@ -175,11 +198,27 @@ private fun UpdateSection(
             is UpdateState.Available -> {
                 val info = state.info
                 SettingInfo(
-                    title = "Tersedia v${info.version}",
-                    subtitle = "${"%.1f".format(info.sizeBytes / 1048576f)} MB"
+                    title = stringResource(R.string.update_available, info.version),
+                    subtitle = stringResource(
+                        R.string.update_local_remote, "v$localVersion", "v${info.version}"
+                    ) + " · " + stringResource(
+                        R.string.update_size_mb, info.sizeBytes / 1048576f
+                    )
                 )
+                // Signing-key rotation (v1.0.4+): in-app install from
+                // v1.0.3 or older fails silently at the package installer.
+                // Warn instead of letting the user tap into a dead end.
+                // The check sunsets itself once everyone is past 1.0.3.
+                if (com.unyxx.act.network.ReleaseInfo.compareVersions(localVersion, "1.0.3") <= 0) {
+                    Text(
+                        stringResource(R.string.update_rotation_warn),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(vertical = 6.dp)
+                    )
+                }
                 Text(
-                    info.notes.ifBlank { "Lihat halaman rilis untuk detail." },
+                    info.notes.ifBlank { stringResource(R.string.update_notes_fallback) },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 10,
@@ -187,7 +226,7 @@ private fun UpdateSection(
                     modifier = Modifier.padding(vertical = 6.dp)
                 )
                 UpdateButton(
-                    label = "Unduh & Pasang",
+                    label = stringResource(R.string.update_download_install),
                     icon = Icons.Filled.Download,
                     enabled = true,
                     onClick = onDownload
@@ -215,31 +254,44 @@ private fun UpdateSection(
                     )
                 }
                 UpdateButton(
-                    label = "Batal",
-                    icon = Icons.Filled.Refresh,
+                    label = stringResource(R.string.update_cancel),
+                    icon = Icons.Filled.Close,
                     enabled = true,
                     onClick = onCancel
                 )
             }
             is UpdateState.Downloaded -> {
                 SettingInfo(
-                    title = "Unduhan selesai",
-                    subtitle = "Tap Pasang, izinkan instal, lalu reboot scope bila diminta"
+                    title = stringResource(R.string.update_downloaded),
+                    subtitle = stringResource(R.string.update_downloaded_sub)
                 )
                 UpdateButton(
-                    label = "Pasang sekarang",
+                    label = stringResource(R.string.update_install_now),
                     icon = Icons.Filled.Download,
                     enabled = true,
                     onClick = onInstall
                 )
             }
             is UpdateState.Failed -> {
+                // Raw errors ("GitHub HTTP 403") mean nothing to users:
+                // translate the common ones, keep the raw text as detail.
+                val hint = when {
+                    "403" in state.message ->
+                        stringResource(R.string.update_hint_rate)
+                    state.message.contains("resolve", ignoreCase = true) ||
+                        state.message.contains("UnknownHost", ignoreCase = true) ||
+                        state.message.contains("Connect", ignoreCase = true) ||
+                        state.message.contains("timeout", ignoreCase = true) ||
+                        state.message.contains("Network", ignoreCase = true) ->
+                        stringResource(R.string.update_hint_network)
+                    else -> state.message
+                }
                 SettingInfo(
-                    title = "Gagal",
-                    subtitle = state.message
+                    title = stringResource(R.string.update_failed),
+                    subtitle = hint
                 )
                 UpdateButton(
-                    label = "Coba lagi",
+                    label = stringResource(R.string.update_retry),
                     icon = Icons.Filled.Refresh,
                     enabled = true,
                     onClick = onCheck
@@ -410,21 +462,12 @@ private fun buildDiagnostics(context: android.content.Context): String {
 }
 
 /**
- * Live glass preview on dummy content. Preflights the native view so a
- * load failure degrades to a static scrim instead of crashing Settings
- * (the TabBar lesson).
+ * Live preview of the REAL ghost bar (KlyntGhostBar) on dummy content.
+ * What you see here is what hooked targets get — no native view, so no
+ * preflight/fallback dance needed (the TabBar lesson, finally applied).
  */
 @Composable
 private fun GlassPreview() {
-    val context = LocalContext.current
-    val glassOk = remember {
-        try {
-            KlyntLiquidGlassView(context)
-            true
-        } catch (_: Throwable) {
-            false
-        }
-    }
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -446,35 +489,20 @@ private fun GlassPreview() {
                 )
             }
         }
-        if (glassOk) {
-            AndroidView(
-                factory = {
-                    KlyntLiquidGlassView(it).apply {
-                        // No auto-configure in init anymore (single-configure
-                        // rule): the preview configures explicitly here.
-                        try {
-                            configure(
-                                com.unyxx.act.util.SocDetector.resolve(it),
-                                it
-                            )
-                        } catch (_: Throwable) {
-                        }
+        AndroidView(
+            factory = { ctx ->
+                com.unyxx.act.liquidglass.ghost.KlyntGhostBar(ctx).apply {
+                    labels = listOf("Obrolan", "Kontak", "Setelan", "Profil")
+                    selectedIndex = 0
+                    // Pill fills the preview box (inset a little).
+                    post {
+                        val pad = (resources.displayMetrics.density * 8).toInt()
+                        setBarRect(pad, pad, width - pad, height - pad)
                     }
-                },
-                modifier = Modifier
-                    .fillMaxWidth(0.6f)
-                    .height(56.dp)
-                    .clip(RoundedCornerShape(50))
-            )
-        } else {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth(0.6f)
-                    .height(56.dp)
-                    .clip(RoundedCornerShape(50))
-                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.55f))
-            )
-        }
+                }
+            },
+            modifier = Modifier.fillMaxWidth(0.85f).height(72.dp)
+        )
     }
 }
 

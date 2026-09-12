@@ -1,7 +1,9 @@
 package com.unyxx.act.liquidglass.ghost
 
+import android.animation.ValueAnimator
 import android.content.Context
 import android.content.res.Configuration
+import android.graphics.BlurMaskFilter
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Path
@@ -12,6 +14,8 @@ import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.View
 import android.view.accessibility.AccessibilityNodeInfo
+import android.view.animation.DecelerateInterpolator
+import android.view.animation.OvershootInterpolator
 import kotlin.math.min
 
 /**
@@ -51,9 +55,63 @@ class KlyntGhostBar @JvmOverloads constructor(
     /** Highlighted slot; follows forwarded taps, re-synced per resume. */
     var selectedIndex: Int = 0
         set(value) {
-            field = value.coerceIn(0, (slotCount - 1).coerceAtLeast(0))
-            invalidate()
+            val coerced = value.coerceIn(0, (slotCount - 1).coerceAtLeast(0))
+            if (field == coerced && selectedCx >= 0f) return
+            field = coerced
+            animateSelection()
         }
+
+    /** Animated selection center-x (slides instead of jumping). */
+    private var selectedCx: Float = -1f
+    private var slideAnim: ValueAnimator? = null
+
+    /** Tap bounce scale (1 = rest). */
+    private var tapScale: Float = 1f
+    private var bounceAnim: ValueAnimator? = null
+
+    private fun slotCenterX(index: Int): Float {
+        if (pillRect.isEmpty || slotCount <= 0) return -1f
+        val slotW = pillRect.width() / slotCount
+        return pillRect.left + slotW * index + slotW / 2f
+    }
+
+    private fun animateSelection() {
+        val target = slotCenterX(selectedIndex)
+        if (target < 0f || width <= 0) {
+            selectedCx = target
+            invalidate()
+            return
+        }
+        if (selectedCx < 0f) {
+            selectedCx = target
+            invalidate()
+            return
+        }
+        slideAnim?.cancel()
+        val from = selectedCx
+        slideAnim = ValueAnimator.ofFloat(from, target).apply {
+            duration = 220
+            interpolator = DecelerateInterpolator()
+            addUpdateListener {
+                selectedCx = it.animatedValue as Float
+                invalidate()
+            }
+            start()
+        }
+    }
+
+    private fun playBounce() {
+        bounceAnim?.cancel()
+        bounceAnim = ValueAnimator.ofFloat(1f, 0.94f, 1f).apply {
+            duration = 180
+            interpolator = OvershootInterpolator(2f)
+            addUpdateListener {
+                tapScale = it.animatedValue as Float
+                invalidate()
+            }
+            start()
+        }
+    }
 
     /** Called with the tapped slot index (driver forwards the click). */
     var onSlotTapped: ((Int) -> Unit)? = null
@@ -102,12 +160,25 @@ class KlyntGhostBar @JvmOverloads constructor(
         textSize = dp(11f)
         textAlign = Paint.Align.CENTER
     }
+    private val shadowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.FILL
+        color = 0x4D000000.toInt()
+        maskFilter = BlurMaskFilter(dp(10f), BlurMaskFilter.Blur.NORMAL)
+    }
+    private val ringPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeWidth = dp(2f)
+        color = 0xFF33A7E5.toInt()
+    }
 
     private val tmpPath = Path()
 
     init {
         isClickable = true
         isFocusable = true
+        // BlurMaskFilter needs a software layer; draws happen only on
+        // interaction (tap/slide), never per-frame, so the cost is trivial.
+        setLayerType(LAYER_TYPE_SOFTWARE, null)
         // Screen-reader users get the real tab labels as actions.
         importantForAccessibility = IMPORTANT_FOR_ACCESSIBILITY_YES
     }
@@ -118,15 +189,33 @@ class KlyntGhostBar @JvmOverloads constructor(
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
         if (pillRect.isEmpty || slotCount <= 0) return
-        val radius = pillRect.height() / 2f
+        // First draw ever: snap the indicator (no slide from nowhere).
+        if (selectedCx < 0f) selectedCx = slotCenterX(selectedIndex)
 
+        // Tap bounce around the pill center.
+        canvas.save()
+        canvas.scale(tapScale, tapScale, pillRect.centerX(), pillRect.centerY())
+
+        val radius = pillRect.height() / 2f
+        // Soft outer shadow (lifts the pill off content).
+        canvas.drawRoundRect(
+            pillRect.left, pillRect.top + dp(3f),
+            pillRect.right, pillRect.bottom + dp(3f),
+            radius, radius, shadowPaint
+        )
         // Pill body.
         canvas.drawRoundRect(pillRect, radius, radius, bgPaint)
-        // Top specular highlight (the "glass" cue that needs no blur):
-        // redraw body over the bottom half, leaving highlight on top.
+        // Top specular highlight (the "glass" cue that needs no blur).
         val save = canvas.save()
         canvas.clipRect(pillRect.left, pillRect.top, pillRect.right, pillRect.centerY())
         canvas.drawRoundRect(pillRect, radius, radius, highlightPaint)
+        // Bright top edge line: the iPhone specular read.
+        canvas.drawLine(
+            pillRect.left + radius, pillRect.top + dp(1f),
+            pillRect.right - radius, pillRect.top + dp(1f),
+            ringPaint.apply { alpha = 90 }
+        )
+        ringPaint.alpha = 255
         canvas.restoreToCount(save)
         // Border last so it stays crisp.
         canvas.drawRoundRect(pillRect, radius, radius, borderPaint)
@@ -136,10 +225,17 @@ class KlyntGhostBar @JvmOverloads constructor(
             val selected = i == selectedIndex
             val cx = pillRect.left + slotW * i + slotW / 2f
             val cy = pillRect.top + pillRect.height() * 0.36f
-            // Selection dot behind the glyph.
-            if (selected) {
+            // Selection indicator SLIDES (selectedCx) instead of jumping.
+            if (i == selectedIndex && selectedCx >= 0f) {
                 val r = min(slotW, pillRect.height()) * 0.30f
-                canvas.drawCircle(cx, cy, r, accentPaint)
+                canvas.drawCircle(selectedCx, cy, r, accentPaint)
+            }
+            // Pressed ring follows the finger.
+            if (pressedIndex == i) {
+                val r = min(slotW, pillRect.height()) * 0.36f
+                ringPaint.alpha = 160
+                canvas.drawCircle(cx, cy, r, ringPaint)
+                ringPaint.alpha = 255
             }
             drawGlyph(canvas, i, cx, cy, selected)
             // Label under the glyph, mirrored from the real tab.
@@ -155,6 +251,7 @@ class KlyntGhostBar @JvmOverloads constructor(
             )
             textPaint.alpha = 255
         }
+        canvas.restore()
     }
 
     /** Generic iOS-ish glyphs: bubble, person, gear, profile. */
@@ -220,6 +317,10 @@ class KlyntGhostBar @JvmOverloads constructor(
                 val now = slotAt(event.x, event.y)
                 if (now != pressedIndex) {
                     pressedIndex = now
+                    if (now >= 0) {
+                        // Glide feedback: tick per slot crossed.
+                        performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                    }
                     invalidate()
                 }
                 return true
@@ -231,6 +332,7 @@ class KlyntGhostBar @JvmOverloads constructor(
                 if (tapped >= 0) {
                     performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
                     selectedIndex = tapped
+                    playBounce()
                     onSlotTapped?.invoke(tapped)
                 }
                 return true

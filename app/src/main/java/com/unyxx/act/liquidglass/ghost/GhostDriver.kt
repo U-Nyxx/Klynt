@@ -5,6 +5,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.ViewTreeObserver
 import android.widget.FrameLayout
+import com.unyxx.act.liquidglass.injection.BottomNavWrapper
 import java.util.Collections
 import java.util.WeakHashMap
 
@@ -40,6 +41,15 @@ object GhostDriver {
     )
 
     private val states: MutableMap<ViewGroup, GhostState> =
+        Collections.synchronizedMap(WeakHashMap())
+
+    private data class RetryState(
+        var listener: ViewTreeObserver.OnGlobalLayoutListener? = null,
+        var observer: ViewTreeObserver? = null,
+        var attachListener: View.OnAttachStateChangeListener? = null
+    )
+
+    private val retries: MutableMap<ViewGroup, RetryState> =
         Collections.synchronizedMap(WeakHashMap())
 
     /**
@@ -115,8 +125,76 @@ object GhostDriver {
         states[decor] = state
         syncGeometry(decor, state)
         bindTracking(decor, state)
+        disarmRetry(decor)
+        // Ghost won after glass wrapped (retry race): exactly one visual.
+        try {
+            BottomNavWrapper.unwrapAll(decor, pkg)
+        } catch (_: Throwable) {
+        }
         log("Ghost bar active in $pkg: ${mapping.tabs.size} tabs [${mapping.labels.joinToString("/")}]")
         return true
+    }
+
+    /**
+     * Arms a throttled re-attempt for decors whose tabs aren't mapped yet
+     * (still loading) or rebuilt later. Without this, ghost was one-shot
+     * per resume: a miss meant the glass fallback won permanently and the
+     * original bar stayed visible forever ("muncul lalu menetap").
+     * Disarms on success, on [restore], or on decor detach.
+     */
+    fun ensureRetryArmed(decor: ViewGroup, pkg: String, log: (String) -> Unit = {}) {
+        if (states.containsKey(decor) || retries.containsKey(decor)) return
+        if (!decor.isAttachedToWindow) return
+        val retry = RetryState()
+        retries[decor] = retry
+        var last = 0L
+        val listener = ViewTreeObserver.OnGlobalLayoutListener {
+            val now = android.os.SystemClock.uptimeMillis()
+            if (now - last < 2000L) return@OnGlobalLayoutListener
+            last = now
+            try {
+                if (!decor.isAttachedToWindow || states.containsKey(decor)) {
+                    disarmRetry(decor)
+                    return@OnGlobalLayoutListener
+                }
+                tryGhost(decor, pkg, log)
+            } catch (_: Throwable) {
+            }
+        }
+        retry.listener = listener
+        val attach = object : View.OnAttachStateChangeListener {
+            override fun onViewAttachedToWindow(v: View) {}
+            override fun onViewDetachedFromWindow(v: View) = disarmRetry(decor)
+        }
+        retry.attachListener = attach
+        try {
+            val observer = decor.viewTreeObserver
+            if (observer.isAlive) {
+                retry.observer = observer
+                observer.addOnGlobalLayoutListener(listener)
+            }
+        } catch (_: Throwable) {
+        }
+        try {
+            decor.addOnAttachStateChangeListener(attach)
+        } catch (_: Throwable) {
+        }
+    }
+
+    /** Stops a pending retry (ghost up, feature off, or superseded). */
+    fun disarmRetry(decor: ViewGroup) {
+        val retry = retries.remove(decor) ?: return
+        try {
+            retry.listener?.let { listener ->
+                retry.observer?.takeIf { it.isAlive }
+                    ?.removeOnGlobalLayoutListener(listener)
+            }
+        } catch (_: Throwable) {
+        }
+        try {
+            retry.attachListener?.let { decor.removeOnAttachStateChangeListener(it) }
+        } catch (_: Throwable) {
+        }
     }
 
     /** Removes our overlay and un-hides everything we hid. Never throws. */

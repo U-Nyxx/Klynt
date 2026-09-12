@@ -19,6 +19,16 @@ object PrefsSchema {
     fun appKey(packageName: String, feature: Feature): String =
         "$APP_PREFIX$packageName:${feature.name}"
 
+    /**
+     * Per-app bar mode: AUTO tries ghost first (glass fallback), FORCE_GHOST
+     * skips glass entirely and keeps retrying, GLASS_ONLY skips ghost.
+     * Default AUTO preserves old behavior for existing installs.
+     */
+    fun ghostModeKey(packageName: String): String =
+        "$APP_PREFIX$packageName:BAR_MODE"
+
+    enum class GhostMode { AUTO, FORCE_GHOST, GLASS_ONLY }
+
     /** Per-app glass intensity 0..1 (default 1 = full SoC profile). */
     fun intensityKey(packageName: String): String =
         "$APP_PREFIX$packageName:GLASS_INTENSITY"
