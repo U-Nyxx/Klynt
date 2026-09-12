@@ -95,6 +95,7 @@ class MainActivity : ComponentActivity() {
  * Swiping pages and tapping tabs drive the same pager state, so the
  * pill indicator tracks finger position fractionally.
  */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @androidx.compose.runtime.Composable
 fun MainScreen(
     appsViewModel: AppsViewModel,

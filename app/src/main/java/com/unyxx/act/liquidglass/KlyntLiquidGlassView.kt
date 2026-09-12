@@ -53,11 +53,13 @@ class KlyntLiquidGlassView @JvmOverloads constructor(
         } catch (_: Throwable) {
         }
         // Cheaper capture + pipeline on weak tiers. Verified against the
-        // v2.0.8 AAR surface (setEnableOptimizedCapture/setHighQuality/
-        // setEnableShadow/setEnableChromaticDispersion all exist).
+        // v2.0.8 AAR surface (setEnableOptimizedCapture/setEnableShadow/
+        // setEnableChromaticDispersion exist). NOTE: no highQuality knob
+        // exists in v2.0.8 despite the getter-sounding name pattern — the
+        // Profile.highQuality flag is tier documentation until the lib
+        // (or a vendored fork) exposes it.
         try {
             enableOptimizedCapture = true
-            highQuality = profile.highQuality && !fallback
         } catch (_: Throwable) {
         }
         if (fallback || k <= 0f) {
