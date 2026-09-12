@@ -48,7 +48,7 @@ class RemotePrefs private constructor(
                 PrefsSchema.appKey(packageName, PrefsSchema.Feature.BLUR_ENABLED),
                 PrefsSchema.Feature.BLUR_ENABLED.defaultValue
             ),
-            managerVersion = prefs.getString(PrefsSchema.MANAGER_VERSION_KEY, "?")
+            managerVersion = prefs.getString(PrefsSchema.MANAGER_VERSION_KEY, "?") ?: "?"
         )
     }
 
