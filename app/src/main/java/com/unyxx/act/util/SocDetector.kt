@@ -34,13 +34,17 @@ object SocDetector {
         val highQuality: Boolean
     )
 
-    fun detect(): Profile {
+    fun detect(): Profile =
+        profileFor(Build.HARDWARE.lowercase(), Build.BRAND.lowercase())
+
+    /**
+     * Pure SoC → profile mapping (no framework access), unit-testable on
+     * plain JVM. Callers must pass already-lowercased strings.
+     */
+    fun profileFor(hardware: String, brand: String): Profile {
         // NOTE: compare LOWERCASED on both sides — the old code lowercased
         // HARDWARE then matched "MT8"/"MT6" uppercase, so every Dimensity
         // silently fell through to the unknown bucket.
-        val hardware = Build.HARDWARE.lowercase()
-        val brand = Build.BRAND.lowercase()
-
         return when {
             // Snapdragon 8-series + 8 Elite (Adreno + Hexagon): full lens.
             hardware.startsWith("sm8") || hardware.startsWith("sun") ||

@@ -22,6 +22,13 @@ android {
         targetSdk = 35
         versionCode = 5
         versionName = "1.0.3"
+        // Strip locales bundled by AARs (we ship en + in only).
+        resourceConfigurations += listOf("en", "in")
+        // Real devices on minSdk 30 are arm64; shipping x86/32-bit .so
+        // only bloats the APK (no emulator tests run in CI).
+        ndk {
+            abiFilters += "arm64-v8a"
+        }
     }
 
     buildFeatures {
@@ -78,6 +85,12 @@ android {
     }
 }
 
+// JUnit5 tests must run on the JUnit Platform (else Gradle silently
+// discovers zero tests and the suite is theater).
+tasks.withType<Test> {
+    useJUnitPlatform()
+}
+
 dependencies {
     // Xposed API + Service (libxposed 101; runs on 101+ frameworks).
     compileOnly("io.github.libxposed:api:101.0.0")
@@ -93,35 +106,24 @@ dependencies {
     api("androidx.compose.material:material-icons-extended")
     implementation("androidx.activity:activity-compose:1.9.2")
     implementation("androidx.compose.foundation:foundation")
-    implementation("androidx.navigation:navigation-compose:2.8.4")
     implementation("androidx.core:core-ktx:1.13.1")
-    implementation("androidx.core:core-splashscreen:1.0.1")
-
-    // Material Components
-    implementation("com.google.android.material:material:1.12.0")
 
     // Lifecycle
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.2")
     implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.2")
     implementation("androidx.lifecycle:lifecycle-viewmodel-savedstate:2.8.2")
 
-    // Coroutines/Flow
+    // Coroutines/Flow (-android pulls -core transitively)
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.1")
 
     // Serialization
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
 
-    // Coil - Async image loading
-    implementation("io.coil-kt:coil-compose:2.6.0")
-
-    // Retrofit + OkHttp + Gson - Update checking
-    implementation("com.squareup.retrofit2:retrofit:2.11.0")
-    implementation("com.squareup.retrofit2:converter-gson:2.11.0")
+    // NOTE (diet): coil, work-runtime, navigation-compose,
+    // core-splashscreen, material (MDC views), retrofit + converter-gson
+    // were removed — zero usages in main source (verified). Update check
+    // uses OkHttp + Gson directly.
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
-
-    // WorkManager - Background tasks
-    implementation("androidx.work:work-runtime-ktx:2.9.0")
 
     // JSON
     implementation("com.google.code.gson:gson:2.10.1")
