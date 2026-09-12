@@ -87,7 +87,10 @@ fun HomeScreen(viewModel: HomeViewModel) {
                 StatusCard(isModuleActive = isModuleActive)
             }
             item {
-                SetupChecklistCard(checks = checks)
+                SetupChecklistCard(
+                    checks = checks,
+                    onAckRestart = { viewModel.ackRestart() }
+                )
             }
             item {
                 StatsCard(stats = stats)
@@ -201,7 +204,10 @@ private fun StatusCard(isModuleActive: Boolean) {
 }
 
 @Composable
-private fun SetupChecklistCard(checks: List<SetupCheck>) {
+private fun SetupChecklistCard(
+    checks: List<SetupCheck>,
+    onAckRestart: () -> Unit
+) {
     if (checks.isEmpty()) return
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -244,13 +250,20 @@ private fun SetupChecklistCard(checks: List<SetupCheck>) {
                         modifier = Modifier.size(22.dp)
                     )
                     Spacer(modifier = Modifier.size(12.dp))
-                    Column {
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(label, style = MaterialTheme.typography.bodyLarge)
                         Text(
                             hint,
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                    }
+                    // Restart can't be detected — ask for confirmation
+                    // instead of lying green like before.
+                    if (check.key == CheckKey.RESTART && !check.done) {
+                        androidx.compose.material3.TextButton(onClick = onAckRestart) {
+                            Text(stringResource(R.string.action_mark_restarted))
+                        }
                     }
                 }
             }

@@ -44,11 +44,34 @@ class KlyntApplication : Application(), XposedServiceHelper.OnServiceListener {
 
     override fun onCreate() {
         super.onCreate()
+        installCrashCatcher()
         ServiceLocator.init(this)
         try {
             XposedServiceHelper.registerListener(this)
         } catch (_: Throwable) {
             // No framework present — manager still works standalone.
+        }
+    }
+
+    /**
+     * Last-resort crash recorder. If the manager ever dies, the stacktrace
+     * lands in `filesDir/crash.log` (surfaced in Settings diagnostics) so
+     * a crash is evidence instead of a mystery. Always chains to the
+     * previous handler so system crash UX is unchanged.
+     */
+    private fun installCrashCatcher() {
+        val previous = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
+            try {
+                val file = java.io.File(filesDir, "crash.log")
+                val sw = java.io.StringWriter()
+                throwable.printStackTrace(java.io.PrintWriter(sw))
+                file.writeText(
+                    "${java.util.Date()} ${thread.name}\n${sw}\n"
+                )
+            } catch (_: Throwable) {
+            }
+            previous?.uncaughtException(thread, throwable)
         }
     }
 

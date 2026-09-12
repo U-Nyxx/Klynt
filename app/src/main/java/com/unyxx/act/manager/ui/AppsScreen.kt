@@ -59,7 +59,9 @@ import android.graphics.drawable.Drawable
 @Composable
 fun AppsScreen(viewModel: AppsViewModel) {
     val uiState by viewModel.uiState.collectAsState()
-    val isModuleActive by remember { mutableStateOf(ServiceLocator.isModuleActive()) }
+    // Recomputed every composition (not remember-once): after returning
+    // from LSPosed + onResume refresh, the banner must reflect the grant.
+    val isModuleActive = ServiceLocator.isModuleActive()
 
     Scaffold(
         topBar = {
@@ -94,12 +96,12 @@ fun AppsScreen(viewModel: AppsViewModel) {
                         ) {
                             Column {
                                 Text(
-                                    text = "Module Not Active",
+                                    text = stringResource(R.string.banner_inactive_title),
                                     style = MaterialTheme.typography.titleMedium,
                                     color = MaterialTheme.colorScheme.onErrorContainer
                                 )
                                 Text(
-                                    text = "Enable KLYNT module in LSPosed/Xposed Manager, then reboot or reopen target apps.",
+                                    text = stringResource(R.string.banner_inactive_body),
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.8f)
                                 )
@@ -126,7 +128,7 @@ fun AppsScreen(viewModel: AppsViewModel) {
                 AppFamilySection(
                     title = "Twitter/X",
                     icon = Icons.Default.MailOutline,
-                    apps = uiState.apps.filter { app -> app.packageName == "com.twitter.android" },
+                    apps = uiState.apps.filter { app -> app.family == AppFamily.TWITTER },
                     onToggle = { pkg, enabled -> viewModel.toggleLiquidGlass(pkg, enabled) },
                     onRequestScope = { pkg -> viewModel.requestScope(pkg) },
                     onIntensity = { pkg, v -> viewModel.setGlassIntensity(pkg, v) },
@@ -198,6 +200,9 @@ fun AppRow(
             containerColor = MaterialTheme.colorScheme.surfaceVariant
         )
     ) {
+        // Column (not Row): TunePanel is a full-width Column and used to
+        // be squeezed as a direct child of this Row when expanded.
+        Column(modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -291,6 +296,7 @@ fun AppRow(
                     onBlur = onBlur
                 )
             }
+        }
         }
     }
 }

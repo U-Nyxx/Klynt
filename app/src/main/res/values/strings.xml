@@ -14,6 +14,9 @@
     <string name="check_installed_hint">Install Telegram / X first</string>
     <string name="check_restart">Restart target</string>
     <string name="check_restart_hint">Force-stop and reopen after every change</string>
+    <string name="action_mark_restarted">Mark restarted</string>
+    <string name="banner_inactive_title">Module Not Active</string>
+    <string name="banner_inactive_body">Enable KLYNT in LSPosed → Modules, tick EACH target app in its scope, then force-stop and reopen the target.</string>
     <string name="tune_title">Glass tuning</string>
     <string name="tune_intensity">Glass intensity</string>
     <string name="tune_corner">Corner radius</string>

@@ -33,9 +33,14 @@ object ServiceLocator {
         KlyntApplication.addServiceStateListener(
             object : KlyntApplication.ServiceStateListener {
                 override fun onServiceStateChanged(service: io.github.libxposed.service.XposedService?) {
-                    logEvent(
-                        if (service != null) "Framework binder connected" else "Framework binder lost"
-                    )
+                    if (service != null) {
+                        logEvent("Framework binder connected")
+                        maintainActiveFlag(service)
+                        flushPendingRemote(service)
+                    } else {
+                        setActiveFlag(false)
+                        logEvent("Framework binder lost")
+                    }
                 }
             },
             notifyImmediately = false
@@ -52,20 +57,39 @@ object ServiceLocator {
     /**
      * Reliable "module active" signal: the framework is alive AND at
      * least one KLYNT target is inside the enabled scope.
-     * Falls back to the local marker when the service is unreachable.
+     * Falls back to the maintained local marker (written on every
+     * binder connect/disconnect) when the service is unreachable.
      */
     fun isModuleActive(): Boolean {
         val service = KlyntApplication.xposedService
         if (service != null) {
             return try {
-                service.scope.any { pkg ->
-                    TelegramVariants.isTelegram(pkg) || TwitterVariants.isTwitter(pkg)
-                }
+                scopeHasTarget(service.scope)
             } catch (_: Throwable) {
                 localActiveFlag()
             }
         }
         return localActiveFlag()
+    }
+
+    private fun scopeHasTarget(scope: Collection<String>): Boolean =
+        scope.any { pkg ->
+            TelegramVariants.isTelegram(pkg) || TwitterVariants.isTwitter(pkg)
+        }
+
+    private fun maintainActiveFlag(service: io.github.libxposed.service.XposedService) {
+        try {
+            setActiveFlag(scopeHasTarget(service.scope))
+        } catch (_: Throwable) {
+        }
+    }
+
+    private fun setActiveFlag(active: Boolean) {
+        try {
+            context?.getSharedPreferences(PrefsSchema.PREFS_FILE, Context.MODE_PRIVATE)
+                ?.edit()?.putBoolean(PrefsSchema.MODULE_ACTIVE, active)?.apply()
+        } catch (_: Throwable) {
+        }
     }
 
     private fun localActiveFlag(): Boolean {
@@ -180,32 +204,75 @@ object ServiceLocator {
         Logger.d { "Set corner $key = $clamped" }
     }
 
+    /** Queued remote write, replayed on the next binder connect. */
+    private data class PendingWrite(val isFloat: Boolean, val key: String, val b: Boolean, val f: Float)
+
+    private val pendingLock = Any()
+    private val pendingRemote = ArrayDeque<PendingWrite>()
+
+    private fun enqueueRemote(write: PendingWrite) {
+        synchronized(pendingLock) {
+            pendingRemote.removeAll { it.key == write.key }
+            pendingRemote.addLast(write)
+            while (pendingRemote.size > 200) pendingRemote.removeFirst()
+        }
+    }
+
+    private fun flushPendingRemote(service: io.github.libxposed.service.XposedService) {
+        val batch: List<PendingWrite>
+        synchronized(pendingLock) {
+            if (pendingRemote.isEmpty()) return
+            batch = pendingRemote.toList()
+            pendingRemote.clear()
+        }
+        try {
+            val remote = service.getRemotePreferences(PrefsSchema.PREFS_FILE)?.edit() ?: return
+            batch.forEach {
+                if (it.isFloat) remote.putFloat(it.key, it.f) else remote.putBoolean(it.key, it.b)
+            }
+            remote.apply()
+            Logger.d { "Replayed ${batch.size} queued remote writes" }
+        } catch (_: Throwable) {
+            synchronized(pendingLock) {
+                batch.forEach { enqueueRemote(it) }
+            }
+        }
+    }
+
     /**
      * Mirrors a boolean into framework Remote Preferences so hooked apps
-     * observe it via `getRemotePreferences`. Silent when the service is
-     * down — the local write above already persisted.
+     * observe it via `getRemotePreferences`. When the service is down the
+     * write is queued and replayed on reconnect — never silently lost.
      */
     private fun writeRemoteBoolean(key: String, value: Boolean) {
+        val service = KlyntApplication.xposedService
+        if (service == null) {
+            enqueueRemote(PendingWrite(false, key, value, 0f))
+            return
+        }
         try {
-            KlyntApplication.xposedService
-                ?.getRemotePreferences(PrefsSchema.PREFS_FILE)
+            service.getRemotePreferences(PrefsSchema.PREFS_FILE)
                 ?.edit()
                 ?.putBoolean(key, value)
                 ?.apply()
         } catch (_: Throwable) {
-            // Service dead — local write already persisted.
+            enqueueRemote(PendingWrite(false, key, value, 0f))
         }
     }
 
     private fun writeRemoteFloat(key: String, value: Float) {
+        val service = KlyntApplication.xposedService
+        if (service == null) {
+            enqueueRemote(PendingWrite(true, key, false, value))
+            return
+        }
         try {
-            KlyntApplication.xposedService
-                ?.getRemotePreferences(PrefsSchema.PREFS_FILE)
+            service.getRemotePreferences(PrefsSchema.PREFS_FILE)
                 ?.edit()
                 ?.putFloat(key, value)
                 ?.apply()
         } catch (_: Throwable) {
-            // Service dead — local write already persisted.
+            enqueueRemote(PendingWrite(true, key, false, value))
         }
     }
 
@@ -218,6 +285,39 @@ object ServiceLocator {
             pm.getApplicationIcon(info)
         } catch (e: PackageManager.NameNotFoundException) {
             null
+        }
+    }
+
+    /**
+     * Single safe pattern for "is this package visible to us". Centralizes
+     * the try/catch so no call-site can reintroduce the launch-crash class
+     * where a throwing getPackageInfo escaped into the UI thread.
+     */
+    fun isInstalled(pm: PackageManager, packageName: String): Boolean {
+        return try {
+            pm.getPackageInfo(packageName, 0)
+            true
+        } catch (_: PackageManager.NameNotFoundException) {
+            false
+        } catch (_: Throwable) {
+            false
+        }
+    }
+
+    /** Last captured manager crash (written by the global handler), if any. */
+    fun readCrashLog(): String? {
+        return try {
+            val f = java.io.File(context?.filesDir, "crash.log")
+            if (f.exists()) f.readText().takeLast(4000) else null
+        } catch (_: Throwable) {
+            null
+        }
+    }
+
+    fun clearCrashLog() {
+        try {
+            java.io.File(context?.filesDir, "crash.log").delete()
+        } catch (_: Throwable) {
         }
     }
 
@@ -269,7 +369,11 @@ object ServiceLocator {
         val sm = scopeManager()
         val apps = sm.getInstallableTargetApps()
         val pm = context?.packageManager ?: return Stats(0, 0, 0, 0, 0)
-        val installed = apps.keys.count { pm.getPackageInfo(it, 0) != null }
+        // getInstallableTargetApps only returns installed packages, but
+        // re-check defensively: getPackageInfo THROWS (never returns null)
+        // for missing/invisible packages — an uncaught throw here used to
+        // kill the manager on launch.
+        val installed = apps.keys.count { pkg -> isInstalled(pm, pkg) }
         val enabled = apps.entries.count { (_, info) ->
             isFeatureEnabled(info.packageName, PrefsSchema.Feature.LIQUID_GLASS_ENABLED)
         }

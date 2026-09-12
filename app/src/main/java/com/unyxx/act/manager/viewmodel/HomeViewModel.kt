@@ -21,7 +21,16 @@ class HomeViewModel : ViewModel() {
     private val _checks = MutableStateFlow<List<SetupCheck>>(emptyList())
     val checks: StateFlow<List<SetupCheck>> = _checks.asStateFlow()
 
+    /** True after the user confirms they restarted targets post-change. */
+    private val _restartAcked = MutableStateFlow(false)
+
     init {
+        refresh()
+    }
+
+    /** Marks targets as restarted; checklist reflects the confirmation. */
+    fun ackRestart() {
+        _restartAcked.value = true
         refresh()
     }
 
@@ -29,6 +38,16 @@ class HomeViewModel : ViewModel() {
         viewModelScope.launch(Dispatchers.IO) {
             val stats = ServiceLocator.getStats()
             val active = ServiceLocator.isModuleActive()
+            // SCOPE is an independent signal (grants exist), NOT an alias
+            // of ACTIVE (hooks live) — conflating them hid real state.
+            val scopeGranted = try {
+                ServiceLocator.getServiceScope().any { pkg ->
+                    com.unyxx.act.xposed.hooks.telegram.TelegramVariants.isTelegram(pkg) ||
+                        com.unyxx.act.xposed.hooks.twitter.TwitterVariants.isTwitter(pkg)
+                }
+            } catch (_: Throwable) {
+                false
+            }
             _stats.value = stats
             _isModuleActive.value = active
             _checks.value = listOf(
@@ -38,7 +57,7 @@ class HomeViewModel : ViewModel() {
                 ),
                 SetupCheck(
                     key = CheckKey.SCOPE,
-                    done = active
+                    done = scopeGranted
                 ),
                 SetupCheck(
                     key = CheckKey.INSTALLED,
@@ -46,7 +65,7 @@ class HomeViewModel : ViewModel() {
                 ),
                 SetupCheck(
                     key = CheckKey.RESTART,
-                    done = true
+                    done = _restartAcked.value
                 )
             )
         }

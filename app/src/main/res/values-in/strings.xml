@@ -14,6 +14,9 @@
     <string name="check_installed_hint">Instal Telegram / X dulu</string>
     <string name="check_restart">Restart target</string>
     <string name="check_restart_hint">Force-stop lalu buka lagi tiap ganti setting</string>
+    <string name="action_mark_restarted">Tandai sudah restart</string>
+    <string name="banner_inactive_title">Modul Belum Aktif</string>
+    <string name="banner_inactive_body">Aktifkan KLYNT di LSPosed → Modul, centang TIAP aplikasi target di scope-nya, lalu force-stop dan buka lagi targetnya.</string>
     <string name="tune_title">Setelan kaca</string>
     <string name="tune_intensity">Intensitas kaca</string>
     <string name="tune_corner">Radius sudut</string>

@@ -23,7 +23,12 @@ object TelegramVariants {
         "com.iMe.android",                  // iMe Messenger
         "com.exteragram.messenger",         // exteraGram
         "telega.messenger",                 // Telega
-        "com.yukigram"                      // Yukigram
+        "com.yukigram",                     // Yukigram
+        "app.nicegram",                     // Nicegram
+        "com.tgconnect.android",            // TgConnect
+        "org.forkgram.classic",             // Forkgram classic
+        "fork.risin42.nagramx",             // NagramX (risin42)
+        "com.iMe.android.web"               // iMe web
     )
 
     fun isTelegram(pkg: String): Boolean = pkg in ALL

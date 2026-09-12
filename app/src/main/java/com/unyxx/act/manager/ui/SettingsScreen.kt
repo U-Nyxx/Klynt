@@ -392,6 +392,10 @@ private fun buildDiagnostics(context: android.content.Context): String {
     } catch (_: Exception) {
         sb.appendLine("targets=?")
     }
+    com.unyxx.act.manager.di.ServiceLocator.readCrashLog()?.let { crash ->
+        sb.appendLine("--- last crash ---")
+        sb.appendLine(crash)
+    }
     return sb.toString()
 }
 

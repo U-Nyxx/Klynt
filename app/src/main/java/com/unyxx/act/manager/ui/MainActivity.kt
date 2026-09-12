@@ -60,6 +60,15 @@ class MainActivity : ComponentActivity() {
         ViewModelProvider(this)[LogsViewModel::class.java]
     }
 
+    override fun onResume() {
+        super.onResume()
+        // User may return from LSPosed after ticking scope: re-read
+        // binder state, scope grants and stats instead of showing stale red.
+        homeViewModel.refresh()
+        appsViewModel.refresh()
+        settingsViewModel.refresh()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // Edge-to-edge so list content shows through the glass bar.
@@ -115,36 +124,41 @@ fun MainScreen(
         )
     ).filter { it.route != "logs" || showLogs }
 
-    val pagerState = androidx.compose.foundation.pager.rememberPagerState(
-        pageCount = { tabs.size }
-    )
-    val scope = rememberCoroutineScope()
-    val selectedPage = pagerState.currentPage +
-        pagerState.currentPageOffsetFraction
-
-    Box(modifier = Modifier.fillMaxSize()) {
-        androidx.compose.foundation.pager.HorizontalPager(
-            state = pagerState,
-            modifier = Modifier.fillMaxSize()
-        ) { page ->
-            when (tabs.getOrNull(page)?.route) {
-                "home" -> HomeScreen(homeViewModel)
-                "apps" -> AppsScreen(appsViewModel)
-                "settings" -> SettingsScreen(settingsViewModel)
-                "logs" -> LogsScreen(logsViewModel)
-            }
-        }
-        LiquidGlassTabBar(
-            tabs = tabs,
-            selectedPage = selectedPage,
-            onPageSelected = { page ->
-                scope.launch {
-                    pagerState.animateScrollToPage(page)
-                }
-            },
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .navigationBarsPadding()
+    // Recreate pager state when the tab COUNT changes (Logs tab appears
+    // once the binder connects): a stale currentPage beyond the new size
+    // used to crash the pager instead of clamping.
+    androidx.compose.runtime.key(tabs.size) {
+        val pagerState = androidx.compose.foundation.pager.rememberPagerState(
+            pageCount = { tabs.size }
         )
+        val scope = rememberCoroutineScope()
+        val selectedPage = pagerState.currentPage +
+            pagerState.currentPageOffsetFraction
+
+        Box(modifier = Modifier.fillMaxSize()) {
+            androidx.compose.foundation.pager.HorizontalPager(
+                state = pagerState,
+                modifier = Modifier.fillMaxSize()
+            ) { page ->
+                when (tabs.getOrNull(page)?.route) {
+                    "home" -> HomeScreen(homeViewModel)
+                    "apps" -> AppsScreen(appsViewModel)
+                    "settings" -> SettingsScreen(settingsViewModel)
+                    "logs" -> LogsScreen(logsViewModel)
+                }
+            }
+            LiquidGlassTabBar(
+                tabs = tabs,
+                selectedPage = selectedPage,
+                onPageSelected = { page ->
+                    scope.launch {
+                        pagerState.animateScrollToPage(page)
+                    }
+                },
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .navigationBarsPadding()
+            )
+        }
     }
 }
