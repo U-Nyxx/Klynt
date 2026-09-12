@@ -166,6 +166,20 @@ object ServiceLocator {
         Logger.d { "Set intensity $key = $clamped" }
     }
 
+    /** Per-app corner radius in dp (999 = pill), mirrored to hooks. */
+    fun getGlassCorner(packageName: String): Float {
+        val key = PrefsSchema.cornerKey(packageName)
+        return prefs?.getFloat(key, 999f) ?: 999f
+    }
+
+    fun setGlassCorner(packageName: String, cornerDp: Float) {
+        val clamped = cornerDp.coerceIn(0f, 999f)
+        val key = PrefsSchema.cornerKey(packageName)
+        prefs?.edit()?.putFloat(key, clamped)?.apply()
+        writeRemoteFloat(key, clamped)
+        Logger.d { "Set corner $key = $clamped" }
+    }
+
     /**
      * Mirrors a boolean into framework Remote Preferences so hooked apps
      * observe it via `getRemotePreferences`. Silent when the service is

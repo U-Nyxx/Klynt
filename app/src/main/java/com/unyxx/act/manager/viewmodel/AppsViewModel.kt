@@ -45,7 +45,9 @@ class AppsViewModel(
                     liquidGlassEnabled = liquidGlassEnabled,
                     isScopeGranted = pkg in scope,
                     version = info.version,
-                    intensity = ServiceLocator.getGlassIntensity(pkg)
+                    intensity = ServiceLocator.getGlassIntensity(pkg),
+                    cornerDp = ServiceLocator.getGlassCorner(pkg),
+                    blurEnabled = ServiceLocator.isFeatureEnabled(pkg, PrefsSchema.Feature.BLUR_ENABLED)
                 )
             }
             _uiState.value = _uiState.value.copy(apps = appsList)
@@ -84,6 +86,28 @@ class AppsViewModel(
         )
     }
 
+    fun setGlassCorner(packageName: String, cornerDp: Float) {
+        ServiceLocator.setGlassCorner(packageName, cornerDp)
+        _uiState.value = _uiState.value.copy(
+            apps = _uiState.value.apps.map { app ->
+                if (app.packageName == packageName) {
+                    app.copy(cornerDp = cornerDp.coerceIn(0f, 999f))
+                } else app
+            }
+        )
+    }
+
+    fun toggleBlur(packageName: String, enable: Boolean) {
+        ServiceLocator.setFeatureEnabled(packageName, PrefsSchema.Feature.BLUR_ENABLED, enable)
+        _uiState.value = _uiState.value.copy(
+            apps = _uiState.value.apps.map { app ->
+                if (app.packageName == packageName) {
+                    app.copy(blurEnabled = enable)
+                } else app
+            }
+        )
+    }
+
     fun refresh() {
         loadApps()
     }
@@ -101,5 +125,7 @@ data class AppUiState(
     val liquidGlassEnabled: Boolean,
     val isScopeGranted: Boolean = false,
     val version: String = "?",
-    val intensity: Float = 1f
+    val intensity: Float = 1f,
+    val cornerDp: Float = 999f,
+    val blurEnabled: Boolean = true
 )

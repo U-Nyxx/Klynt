@@ -14,4 +14,10 @@
     <string name="check_installed_hint">Instal Telegram / X dulu</string>
     <string name="check_restart">Restart target</string>
     <string name="check_restart_hint">Force-stop lalu buka lagi tiap ganti setting</string>
+    <string name="tune_title">Setelan kaca</string>
+    <string name="tune_intensity">Intensitas kaca</string>
+    <string name="tune_corner">Radius sudut</string>
+    <string name="tune_pill">Pil</string>
+    <string name="tune_blur">Blur latar</string>
+    <string name="unit_dp">%1$d dp</string>
 </resources>

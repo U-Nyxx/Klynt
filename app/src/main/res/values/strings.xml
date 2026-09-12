@@ -14,4 +14,10 @@
     <string name="check_installed_hint">Install Telegram / X first</string>
     <string name="check_restart">Restart target</string>
     <string name="check_restart_hint">Force-stop and reopen after every change</string>
+    <string name="tune_title">Glass tuning</string>
+    <string name="tune_intensity">Glass intensity</string>
+    <string name="tune_corner">Corner radius</string>
+    <string name="tune_pill">Pill</string>
+    <string name="tune_blur">Backdrop blur</string>
+    <string name="unit_dp">%1$d dp</string>
 </resources>

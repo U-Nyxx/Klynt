@@ -136,10 +136,16 @@ object TelegramBottomNavHook {
         }
     }
 
+    /**
+     * Walks the full ancestor chain (not just 4 levels): sheets can nest
+     * arbitrarily deep and a cut-off lets them slip through as nav bars.
+     * Bounded by the decor root in practice; every step is a cheap
+     * string check inside try/catch-free code that cannot throw.
+     */
     private fun isDenied(view: View): Boolean {
         var v: View? = view
         var depth = 0
-        while (v != null && depth < 4) {
+        while (v != null && depth < 32) {
             if (DENY_HINTS.any { v.javaClass.simpleName.contains(it, ignoreCase = true) }) return true
             v = v.parent as? View
             depth++
@@ -155,7 +161,11 @@ object TelegramBottomNavHook {
     ): Boolean {
         if (BottomNavWrapper.isInjected(view, pkg)) return true
         val intensity = prefs?.getFloat(PrefsSchema.intensityKey(pkg), 1f) ?: 1f
-        BottomNavWrapper(view.context).wrap(view, pkg, intensity)
+        val corner = prefs?.getFloat(PrefsSchema.cornerKey(pkg), 999f) ?: 999f
+        val blur = prefs?.getBoolean(
+            PrefsSchema.appKey(pkg, PrefsSchema.Feature.BLUR_ENABLED), true
+        ) ?: true
+        BottomNavWrapper(view.context).wrap(view, pkg, intensity, corner, blur)
         log("Injected Liquid Glass into $pkg at ${view.javaClass.name} (target ${targetVersion(view, pkg)})")
         return true
     }

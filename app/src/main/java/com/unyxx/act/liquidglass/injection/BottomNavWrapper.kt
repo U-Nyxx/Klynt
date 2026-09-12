@@ -94,10 +94,18 @@ class BottomNavWrapper @JvmOverloads constructor(
 
     /**
      * @param intensity 0..1 lens strength multiplier (per-app setting).
+     * @param cornerDp corner radius in dp, 999+ means pill (per-app).
+     * @param blur backdrop blur on/off (per-app).
      * @return the wrapper now occupying the original view's slot,
      * or the original view itself when wrapping is impossible.
      */
-    fun wrap(originalView: View, pkg: String, intensity: Float = 1f): View {
+    fun wrap(
+        originalView: View,
+        pkg: String,
+        intensity: Float = 1f,
+        cornerDp: Float = 999f,
+        blur: Boolean = true
+    ): View {
         val key = injectionKey(pkg)
         if (isInjected(originalView, pkg)) return (originalView.parent as? View) ?: originalView
 
@@ -117,7 +125,9 @@ class BottomNavWrapper @JvmOverloads constructor(
             configure(
                 com.unyxx.act.util.SocDetector.detect(),
                 context,
-                intensity.coerceIn(0f, 1f)
+                intensity.coerceIn(0f, 1f),
+                cornerDp,
+                blur
             )
             attachToReference(originalView)
         }

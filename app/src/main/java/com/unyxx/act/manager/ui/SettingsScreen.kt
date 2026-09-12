@@ -2,11 +2,13 @@ package com.unyxx.act.manager.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -20,8 +22,11 @@ import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Button
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.viewinterop.AndroidView
+import com.unyxx.act.liquidglass.KlyntLiquidGlassView
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -106,6 +111,11 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
                     onCancel = { viewModel.cancelDownload(context) },
                     onInstall = { viewModel.installUpdate(context) }
                 )
+            }
+            item {
+                SettingsSection(title = "Preview", icon = Icons.Filled.Tune) {
+                    GlassPreview()
+                }
             }
             item {
                 SettingsSection(title = "About", icon = Icons.Filled.Info) {
@@ -383,6 +393,63 @@ private fun buildDiagnostics(context: android.content.Context): String {
         sb.appendLine("targets=?")
     }
     return sb.toString()
+}
+
+/**
+ * Live glass preview on dummy content. Preflights the native view so a
+ * load failure degrades to a static scrim instead of crashing Settings
+ * (the TabBar lesson).
+ */
+@Composable
+private fun GlassPreview() {
+    val context = LocalContext.current
+    val glassOk = remember {
+        try {
+            KlyntLiquidGlassView(context)
+            true
+        } catch (_: Throwable) {
+            false
+        }
+    }
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(180.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(MaterialTheme.colorScheme.primaryContainer)
+            .padding(16.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            repeat(3) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(0.7f)
+                        .height(10.dp)
+                        .padding(vertical = 3.dp)
+                        .clip(RoundedCornerShape(5.dp))
+                        .background(MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.35f))
+                )
+            }
+        }
+        if (glassOk) {
+            AndroidView(
+                factory = { KlyntLiquidGlassView(it) },
+                modifier = Modifier
+                    .fillMaxWidth(0.6f)
+                    .height(56.dp)
+                    .clip(RoundedCornerShape(50))
+            )
+        } else {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(0.6f)
+                    .height(56.dp)
+                    .clip(RoundedCornerShape(50))
+                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.55f))
+            )
+        }
+    }
 }
 
 @Composable

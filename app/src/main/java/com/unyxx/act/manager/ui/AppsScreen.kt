@@ -30,7 +30,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -44,6 +43,8 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import com.unyxx.act.R
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -115,7 +116,9 @@ fun AppsScreen(viewModel: AppsViewModel) {
                     apps = uiState.apps.filter { app -> app.family == AppFamily.TELEGRAM },
                     onToggle = { pkg, enabled -> viewModel.toggleLiquidGlass(pkg, enabled) },
                     onRequestScope = { pkg -> viewModel.requestScope(pkg) },
-                    onIntensity = { pkg, v -> viewModel.setGlassIntensity(pkg, v) }
+                    onIntensity = { pkg, v -> viewModel.setGlassIntensity(pkg, v) },
+                    onCorner = { pkg, v -> viewModel.setGlassCorner(pkg, v) },
+                    onBlur = { pkg, v -> viewModel.toggleBlur(pkg, v) }
                 )
             }
 
@@ -126,7 +129,9 @@ fun AppsScreen(viewModel: AppsViewModel) {
                     apps = uiState.apps.filter { app -> app.packageName == "com.twitter.android" },
                     onToggle = { pkg, enabled -> viewModel.toggleLiquidGlass(pkg, enabled) },
                     onRequestScope = { pkg -> viewModel.requestScope(pkg) },
-                    onIntensity = { pkg, v -> viewModel.setGlassIntensity(pkg, v) }
+                    onIntensity = { pkg, v -> viewModel.setGlassIntensity(pkg, v) },
+                    onCorner = { pkg, v -> viewModel.setGlassCorner(pkg, v) },
+                    onBlur = { pkg, v -> viewModel.toggleBlur(pkg, v) }
                 )
             }
         }
@@ -140,7 +145,9 @@ fun AppFamilySection(
     apps: List<com.unyxx.act.manager.viewmodel.AppUiState>,
     onToggle: (String, Boolean) -> Unit,
     onRequestScope: (String) -> Unit,
-    onIntensity: (String, Float) -> Unit
+    onIntensity: (String, Float) -> Unit,
+    onCorner: (String, Float) -> Unit,
+    onBlur: (String, Boolean) -> Unit
 ) {
     if (apps.isEmpty()) return
 
@@ -166,7 +173,9 @@ fun AppFamilySection(
                     app = app,
                     onToggle = onToggle,
                     onRequestScope = onRequestScope,
-                    onIntensity = onIntensity
+                    onIntensity = onIntensity,
+                    onCorner = onCorner,
+                    onBlur = onBlur
                 )
             }
         }
@@ -178,7 +187,9 @@ fun AppRow(
     app: com.unyxx.act.manager.viewmodel.AppUiState,
     onToggle: (String, Boolean) -> Unit,
     onRequestScope: (String) -> Unit,
-    onIntensity: (String, Float) -> Unit = { _, _ -> }
+    onIntensity: (String, Float) -> Unit = { _, _ -> },
+    onCorner: (String, Float) -> Unit = { _, _ -> },
+    onBlur: (String, Boolean) -> Unit = { _, _ -> }
 ) {
     var expanded by remember(app.packageName) { mutableStateOf(false) }
     Card(
@@ -255,18 +266,10 @@ fun AppRow(
                     }
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (expanded) {
-                        Slider(
-                            value = app.intensity,
-                            onValueChange = { v -> onIntensity(app.packageName, v) },
-                            valueRange = 0f..1f,
-                            modifier = Modifier.width(110.dp)
-                        )
-                    }
                     IconButton(onClick = { expanded = !expanded }) {
                         Icon(
                             imageVector = Icons.Filled.Tune,
-                            contentDescription = "Intensitas kaca",
+                            contentDescription = stringResource(R.string.tune_title),
                             tint = if (expanded) {
                                 MaterialTheme.colorScheme.primary
                             } else {
@@ -280,6 +283,104 @@ fun AppRow(
                     )
                 }
             }
+            if (expanded) {
+                TunePanel(
+                    app = app,
+                    onIntensity = onIntensity,
+                    onCorner = onCorner,
+                    onBlur = onBlur
+                )
+            }
         }
+    }
+}
+
+/** Expanded per-app glass tuning: intensity, corner radius, blur. */
+@Composable
+private fun TunePanel(
+    app: com.unyxx.act.manager.viewmodel.AppUiState,
+    onIntensity: (String, Float) -> Unit,
+    onCorner: (String, Float) -> Unit,
+    onBlur: (String, Boolean) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 12.dp, end = 12.dp, bottom = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        TuneSlider(
+            label = stringResource(R.string.tune_intensity),
+            valueLabel = "${(app.intensity * 100).toInt()}%",
+            value = app.intensity,
+            range = 0f..1f,
+            onChange = { onIntensity(app.packageName, it) }
+        )
+        TuneSlider(
+            label = stringResource(R.string.tune_corner),
+            valueLabel = if (app.cornerDp >= 999f) {
+                stringResource(R.string.tune_pill)
+            } else {
+                stringResource(R.string.unit_dp, app.cornerDp.toInt())
+            },
+            value = if (app.cornerDp >= 999f) 64f else app.cornerDp.coerceIn(0f, 64f),
+            range = 0f..64f,
+            onChange = { onCorner(app.packageName, it) }
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (app.cornerDp < 999f) {
+                    TextButton(onClick = { onCorner(app.packageName, 999f) }) {
+                        Text(stringResource(R.string.tune_pill))
+                    }
+                }
+                Text(
+                    stringResource(R.string.tune_blur),
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
+            Switch(
+                checked = app.blurEnabled,
+                onCheckedChange = { onBlur(app.packageName, it) }
+            )
+        }
+    }
+}
+
+@Composable
+private fun TuneSlider(
+    label: String,
+    valueLabel: String,
+    value: Float,
+    range: ClosedFloatingPointRange<Float>,
+    onChange: (Float) -> Unit
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                label,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                valueLabel,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary
+            )
+        }
+        Slider(
+            value = value,
+            onValueChange = onChange,
+            valueRange = range,
+            modifier = Modifier.fillMaxWidth()
+        )
     }
 }

@@ -21,8 +21,17 @@ object PrefsSchema {
     fun intensityKey(packageName: String): String =
         "$APP_PREFIX$packageName:GLASS_INTENSITY"
 
+    /**
+     * Per-app corner radius in dp (default 999 = pill). Read with
+     * default 999f so existing installs keep the pill shape.
+     */
+    fun cornerKey(packageName: String): String =
+        "$APP_PREFIX$packageName:GLASS_CORNER_DP"
+
     enum class Feature(val defaultValue: Boolean) {
         LIQUID_GLASS_ENABLED(true),
-        BLUR_ENABLED(false)
+        // Default ON: matches the long-standing hook behavior (blur was
+        // always applied); the toggle now truthfully reflects reality.
+        BLUR_ENABLED(true)
     }
 }

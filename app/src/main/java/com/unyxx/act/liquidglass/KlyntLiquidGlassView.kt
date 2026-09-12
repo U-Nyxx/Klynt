@@ -31,12 +31,20 @@ class KlyntLiquidGlassView @JvmOverloads constructor(
      * Applies a [SocDetector.Profile]; callable again if conditions change.
      *
      * @param intensity 0..1 user multiplier on lens strength (per-app).
+     * @param cornerDp corner radius in dp; 999+ means pill (per-app).
+     * @param blur backdrop blur on/off (per-app).
      */
-    fun configure(profile: SocDetector.Profile, context: Context, intensity: Float = 1f) {
+    fun configure(
+        profile: SocDetector.Profile,
+        context: Context,
+        intensity: Float = 1f,
+        cornerDp: Float = 999f,
+        blur: Boolean = true
+    ) {
         val fallback = profile.frostedFallback || isReducedMotion(context)
         val k = intensity.coerceIn(0f, 1f)
         material = GlassMaterial.REGULAR
-        cornerRadius = 999f
+        cornerRadius = if (cornerDp >= 999f) 999f else cornerDp.dpToPx(context)
         if (fallback || k <= 0f) {
             // Frosted fallback: blur only, no lens — safe on Mali
             // mid-range, battery saver, reduced motion and high contrast.
@@ -53,8 +61,9 @@ class KlyntLiquidGlassView @JvmOverloads constructor(
             enableAdaptiveTint = true
         }
         // Backdrop scrolls under a bottom bar, so it must re-capture.
+        // Blur toggle is user-controlled; the frosted path always blurs.
         enableDynamicBackground = true
-        enableBackdropBlur = true
+        enableBackdropBlur = blur || fallback || k <= 0f
         saturation = 140f
     }
 

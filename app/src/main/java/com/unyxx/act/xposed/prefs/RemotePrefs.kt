@@ -43,6 +43,19 @@ class RemotePrefs private constructor(
         prefs.registerOnSharedPreferenceChangeListener(listener)
     }
 
+    /**
+     * Best-effort refresh of the backing store before a read burst.
+     * Framework-backed remote prefs push changes via listener; this
+     * extra round-trip guards file-backed implementations against
+     * stale reads. Never throws.
+     */
+    fun reload() {
+        try {
+            prefs.all
+        } catch (_: Throwable) {
+        }
+    }
+
     fun getBoolean(key: String, default: Boolean = false): Boolean =
         prefs.getBoolean(key, default)
 

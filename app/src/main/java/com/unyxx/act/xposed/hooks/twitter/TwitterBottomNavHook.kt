@@ -94,6 +94,19 @@ object TwitterBottomNavHook {
             .maxByOrNull { screenBottom(it) }
         if (byClass != null) return wrap(byClass, pkg, log, prefs)
 
+        // 1.5) Semantics signal: a real tab bar is a row of labeled
+        // buttons (Home/Search/Notifications/…). Media cards and sheets
+        // don't expose three-plus labels. View-only signal, no Compose
+        // dependency needed in the target process.
+        val bySemantics = candidates
+            .filter { v ->
+                isBottomAnchored(v, root, 0.85) &&
+                    isWideEnough(v, root) &&
+                    countLabeled(v) >= 3
+            }
+            .maxByOrNull { screenBottom(it) }
+        if (bySemantics != null) return wrap(bySemantics, pkg, log, prefs)
+
         // 2) Density-independent fallback: 56–120dp tall (Compose bars run
         //    taller), near-full width, bottom edge in the lower 20%.
         val target = candidates
@@ -118,6 +131,27 @@ object TwitterBottomNavHook {
     }
 
     /**
+     * Counts descendants carrying a non-blank content description.
+     * Capped traversal with early exit: tab bars hit the threshold
+     * within a handful of nodes, huge media trees bail out fast.
+     */
+    private fun countLabeled(view: View, need: Int = 3, budget: Int = 400): Int {
+        var count = 0
+        var remaining = budget
+        val stack = ArrayDeque<View>()
+        stack.add(view)
+        while (stack.isNotEmpty() && remaining > 0 && count < need) {
+            val v = stack.removeLast()
+            remaining--
+            if (!v.contentDescription.isNullOrBlank()) count++
+            if (v is ViewGroup) {
+                for (i in v.childCount - 1 downTo 0) stack.add(v.getChildAt(i))
+            }
+        }
+        return count
+    }
+
+    /**
      * Sponsored cards also sit at the bottom and match the size heuristic,
      * so reject anything advertising itself as promoted content.
      */
@@ -134,7 +168,11 @@ object TwitterBottomNavHook {
     ): Boolean {
         if (BottomNavWrapper.isInjected(view, pkg)) return true
         val intensity = prefs?.getFloat(PrefsSchema.intensityKey(pkg), 1f) ?: 1f
-        BottomNavWrapper(view.context).wrap(view, pkg, intensity)
+        val corner = prefs?.getFloat(PrefsSchema.cornerKey(pkg), 999f) ?: 999f
+        val blur = prefs?.getBoolean(
+            PrefsSchema.appKey(pkg, PrefsSchema.Feature.BLUR_ENABLED), true
+        ) ?: true
+        BottomNavWrapper(view.context).wrap(view, pkg, intensity, corner, blur)
         log("Injected Liquid Glass into $pkg at ${view.javaClass.name} (target ${targetVersion(view, pkg)})")
         return true
     }
