@@ -1,7 +1,7 @@
 package com.unyxx.act.network
 
 /**
- * Normalized update candidate for one build flavor.
+ * Normalized update candidate (single build).
  *
  * @param version tag without leading 'v' (e.g. "1.0.2").
  */
@@ -12,10 +12,10 @@ data class ReleaseInfo(
     val sizeBytes: Long
 ) {
     companion object {
-        /** Picks the asset matching [flavor] (api101/api102), null when absent. */
-        fun from(release: GitHubRelease, flavor: String): ReleaseInfo? {
+        /** Picks the single `klynt-*-ArJk.apk` asset, null when absent. */
+        fun from(release: GitHubRelease): ReleaseInfo? {
             val asset = release.assets.firstOrNull { a ->
-                a.name.startsWith("klynt-") && a.name.contains("-$flavor-") && a.name.endsWith(".apk")
+                a.name.startsWith("klynt-") && a.name.endsWith("-ArJk.apk")
             } ?: return null
             return ReleaseInfo(
                 version = release.tagName.trim().removePrefix("v"),

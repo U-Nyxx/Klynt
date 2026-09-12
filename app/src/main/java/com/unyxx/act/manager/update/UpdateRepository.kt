@@ -75,8 +75,8 @@ object UpdateRepository {
         }
         return try {
             val release = GitHubApi.fetchLatest()
-            val info = ReleaseInfo.from(release, BuildConfig.FLAVOR)
-                ?: return UpdateState.Failed("No ${BuildConfig.FLAVOR} APK in latest release")
+            val info = ReleaseInfo.from(release)
+                ?: return UpdateState.Failed("No APK in latest release")
             p.edit()
                 .putLong(KEY_CHECK_MS, now)
                 .putString(KEY_TAG, info.version)
