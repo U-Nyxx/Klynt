@@ -93,6 +93,25 @@ class BottomNavWrapper @JvmOverloads constructor(
     fun originalView(): View? = original
 
     /**
+     * Re-applies glass parameters on an already-wrapped bar WITHOUT
+     * unwrapping. Manager slider changes take effect live; previously
+     * the early `return true` ignored them until a forced re-wrap.
+     */
+    fun reconfigure(intensity: Float, cornerDp: Float, blur: Boolean) {
+        try {
+            glass?.configure(
+                com.unyxx.act.util.SocDetector.detect(),
+                context,
+                intensity.coerceIn(0f, 1f),
+                cornerDp,
+                blur
+            )
+        } catch (_: Throwable) {
+            // Glass half-torn-down (detach race) — next pass re-wraps.
+        }
+    }
+
+    /**
      * @param intensity 0..1 lens strength multiplier (per-app setting).
      * @param cornerDp corner radius in dp, 999+ means pill (per-app).
      * @param blur backdrop blur on/off (per-app).

@@ -5,8 +5,8 @@ import android.view.View
 import android.view.ViewGroup
 import com.unyxx.act.liquidglass.injection.BottomNavDiscovery
 import com.unyxx.act.liquidglass.injection.BottomNavWrapper
+import com.unyxx.act.xposed.prefs.GlassSettings
 import com.unyxx.act.xposed.prefs.RemotePrefs
-import com.unyxx.act.xposed.prefs.PrefsSchema
 
 /**
  * Installs the liquid-glass overlay on Telegram-family bottom navigation.
@@ -47,25 +47,21 @@ object TelegramBottomNavHook {
         if (activity.packageName != packageName) return
 
         val decorView = activity.window?.decorView as? ViewGroup ?: return
-        if (!isActiveForApp(prefs, packageName)) {
+        val settings = prefs.glassSettings(packageName)
+        if (!settings.active) {
             BottomNavWrapper.unwrapAll(decorView, packageName)
             return
         }
         BottomNavDiscovery.discover(
             decorView,
-            find = { tryWrap(decorView, packageName, prefs, log) },
+            find = { tryWrap(decorView, packageName, settings, log) },
             onExhausted = {
                 log("No bottom bar found in $packageName (target ${targetVersion(decorView, packageName)})")
             }
         )
     }
 
-    private fun isActiveForApp(prefs: RemotePrefs, packageName: String): Boolean {
-        if (!prefs.getBoolean(PrefsSchema.GLOBAL_LIQUID_GLASS_ENABLED, true)) return false
-        return prefs.isFeatureEnabled(packageName, PrefsSchema.Feature.LIQUID_GLASS_ENABLED)
-    }
-
-    private fun tryWrap(root: ViewGroup, pkg: String, prefs: RemotePrefs, log: (String) -> Unit): Boolean {
+    private fun tryWrap(root: ViewGroup, pkg: String, settings: GlassSettings, log: (String) -> Unit): Boolean {
         if (root.width <= 0 || root.height <= 0) return false
         // Tablets/foldables use a side rail instead of a bottom bar —
         // wrapping here would only break layout, so stand down loudly.
@@ -77,9 +73,12 @@ object TelegramBottomNavHook {
 
         // 0) Previously wrapped view still valid? If it outgrew nav size
         //    (wrapped too early while loading), unwrap and keep looking.
+        //    Re-apply settings live — slider changes must show without
+        //    a target restart.
         BottomNavWrapper.findWrapper(root, pkg)?.let { w ->
             val orig = w.originalView()
             if (orig != null && isBottomAnchored(orig, root) && isNavSized(orig, root, density)) {
+                w.reconfigure(settings.intensity, settings.cornerDp, settings.blur)
                 return true
             }
             BottomNavWrapper.unwrapAll(root, pkg)
@@ -94,7 +93,7 @@ object TelegramBottomNavHook {
         val main = all
             .filter { v -> v.isLaidOut && !BottomNavWrapper.isOurs(v) && isMainTabs(v) }
             .maxByOrNull { screenBottom(it) }
-        if (main != null) return wrap(main, pkg, log, prefs)
+        if (main != null) return wrap(main, pkg, log, settings)
 
         val candidates = all.filter { v ->
             v.isLaidOut && !BottomNavWrapper.isOurs(v) && !isDenied(v)
@@ -107,16 +106,54 @@ object TelegramBottomNavHook {
                     isBottomAnchored(v, root)
             }
             .maxByOrNull { screenBottom(it) }
-        if (byClass != null) return wrap(byClass, pkg, log, prefs)
+        if (byClass != null) return wrap(byClass, pkg, log, settings)
+
+        // 1.5) Semantics signal (obfuscation-proof): a real tab bar is a
+        // row of labeled buttons (Chats/Contacts/Settings…); sticker
+        // panels and sheets don't expose three-plus labels.
+        val bySemantics = candidates
+            .filter { v ->
+                isBottomAnchored(v, root) &&
+                    isWideEnough(v, root) &&
+                    countLabeled(v) >= 3
+            }
+            .maxByOrNull { screenBottom(it) }
+        if (bySemantics != null) return wrap(bySemantics, pkg, log, settings)
 
         // 2) Density-independent fallback: 48–80dp tall, near-full width,
         //    bottom edge inside the lower 15% of the screen.
         val target = candidates
             .filter { v -> isBottomAnchored(v, root) && isNavSized(v, root, density) }
             .maxByOrNull { screenBottom(it) }
-        if (target != null) return wrap(target, pkg, log, prefs)
+        if (target != null) return wrap(target, pkg, log, settings)
 
         return false
+    }
+
+    /**
+     * Counts descendants carrying a non-blank content description.
+     * Capped traversal with early exit: tab bars hit the threshold
+     * within a handful of nodes, huge media trees bail out fast.
+     */
+    private fun countLabeled(view: View, need: Int = 3, budget: Int = 400): Int {
+        var count = 0
+        var remaining = budget
+        val stack = ArrayDeque<View>()
+        stack.add(view)
+        while (stack.isNotEmpty() && remaining > 0 && count < need) {
+            val v = stack.removeLast()
+            remaining--
+            if (!v.contentDescription.isNullOrBlank()) count++
+            if (v is ViewGroup) {
+                for (i in v.childCount - 1 downTo 0) {
+                    try {
+                        stack.add(v.getChildAt(i))
+                    } catch (_: Throwable) {
+                    }
+                }
+            }
+        }
+        return count
     }
 
     private fun isMainTabs(view: View): Boolean {
@@ -157,15 +194,12 @@ object TelegramBottomNavHook {
         view: View,
         pkg: String,
         log: (String) -> Unit,
-        prefs: RemotePrefs? = null
+        settings: GlassSettings
     ): Boolean {
         if (BottomNavWrapper.isInjected(view, pkg)) return true
-        val intensity = prefs?.getFloat(PrefsSchema.intensityKey(pkg), 1f) ?: 1f
-        val corner = prefs?.getFloat(PrefsSchema.cornerKey(pkg), 999f) ?: 999f
-        val blur = prefs?.getBoolean(
-            PrefsSchema.appKey(pkg, PrefsSchema.Feature.BLUR_ENABLED), true
-        ) ?: true
-        BottomNavWrapper(view.context).wrap(view, pkg, intensity, corner, blur)
+        BottomNavWrapper(view.context).wrap(
+            view, pkg, settings.intensity, settings.cornerDp, settings.blur
+        )
         log("Injected Liquid Glass into $pkg at ${view.javaClass.name} (target ${targetVersion(view, pkg)})")
         return true
     }
@@ -189,6 +223,11 @@ object TelegramBottomNavHook {
         if (view.height <= 0 && view.measuredHeight <= 0) return false
         val screenH = root.resources.displayMetrics.heightPixels
         return screenBottom(view) >= screenH * 0.85
+    }
+
+    private fun isWideEnough(view: View, root: ViewGroup): Boolean {
+        val (w, _) = laidOutSize(view)
+        return w > 0 && w >= root.width * 0.85
     }
 
     private fun isNavSized(view: View, root: ViewGroup, density: Float): Boolean {

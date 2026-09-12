@@ -19,18 +19,44 @@ import java.util.concurrent.atomic.AtomicLong
  * its tabs on fragment changes) get wrapped without waiting for the next
  * activity resume. Timed retries only bound the [onExhausted] log.
  * [find] must be idempotent — it is called many times.
+ *
+ * One arming per decor root: repeat resumes reuse the existing probe
+ * instead of piling up handlers + layout listeners (each retained
+ * listener pins the whole hierarchy — a slow leak on every resume).
  */
 object BottomNavDiscovery {
 
     private val DELAYS_MS = longArrayOf(500L, 1000L, 2000L, 3000L, 5000L)
     private const val PROBE_THROTTLE_MS = 1500L
 
-    /** Depth-first collection of a view and all descendants. */
+    /** Max nodes per traversal — Telegram/X trees reach thousands. */
+    private const val COLLECT_BUDGET = 4000
+
+    private val armed = java.util.Collections.synchronizedSet(
+        java.util.Collections.newSetFromMap(java.util.WeakHashMap<ViewGroup, Boolean>())
+    )
+
+    /**
+     * Iterative, budgeted depth-first collection. The old recursion blew
+     * the stack (`StackOverflowError`, swallowed as silent `false`) on
+     * heavy chat hierarchies — exactly where the bar matters most.
+     */
     fun collectAll(view: View, out: MutableList<View>) {
-        out.add(view)
-        if (view is ViewGroup) {
-            for (i in 0 until view.childCount) {
-                collectAll(view.getChildAt(i), out)
+        var remaining = COLLECT_BUDGET
+        val stack = ArrayDeque<View>()
+        stack.add(view)
+        while (stack.isNotEmpty() && remaining > 0) {
+            val v = stack.removeLast()
+            remaining--
+            out.add(v)
+            if (v is ViewGroup) {
+                for (i in v.childCount - 1 downTo 0) {
+                    try {
+                        stack.add(v.getChildAt(i))
+                    } catch (_: Throwable) {
+                        // Mutated mid-walk — skip the child.
+                    }
+                }
             }
         }
     }
@@ -46,21 +72,32 @@ object BottomNavDiscovery {
      * a missing nav is visible in logs instead of silent.
      */
     fun discover(root: ViewGroup, find: () -> Boolean, onExhausted: () -> Unit = {}) {
+        // Same decor re-armed by a later resume: reuse, don't pile up.
+        if (!armed.add(root)) return
         val handler = Handler(Looper.getMainLooper())
         val finished = AtomicBoolean(false)
+        val foundSticky = AtomicBoolean(false)
         val logged = AtomicBoolean(false)
         val attempts = AtomicInteger(0)
         val lastProbe = AtomicLong(0)
         lateinit var layoutListener: ViewTreeObserver.OnGlobalLayoutListener
         lateinit var attachListener: View.OnAttachStateChangeListener
+        // The observer instance at REGISTER time — removing from
+        // root.viewTreeObserver at cleanup can hit a fresh (wrong)
+        // instance after detach and leak the listener instead.
+        var registeredObserver: ViewTreeObserver? = null
 
         fun cleanup() {
+            armed.remove(root)
             handler.removeCallbacksAndMessages(null)
             try {
-                root.viewTreeObserver.removeOnGlobalLayoutListener(layoutListener)
+                registeredObserver
+                    ?.takeIf { it.isAlive }
+                    ?.removeOnGlobalLayoutListener(layoutListener)
             } catch (_: Throwable) {
                 // Observer dead or never registered — nothing to clean up.
             }
+            registeredObserver = null
             try {
                 root.removeOnAttachStateChangeListener(attachListener)
             } catch (_: Throwable) {
@@ -72,7 +109,7 @@ object BottomNavDiscovery {
         }
 
         fun probeTimer() {
-            if (finished.get()) return
+            if (finished.get() || foundSticky.get()) return
             lastProbe.set(SystemClock.uptimeMillis())
             val found = try {
                 find()
@@ -80,7 +117,11 @@ object BottomNavDiscovery {
                 false
             }
             if (found) {
-                finish()
+                // Found: stop the timers but STAY ARMED on layout passes
+                // so a rebuilt bar re-wraps without waiting for resume.
+                // (Previously finish() disarmed here and the glass died
+                // with the first fragment rebuild.)
+                foundSticky.set(true)
                 return
             }
             val n = attempts.incrementAndGet()
@@ -114,8 +155,10 @@ object BottomNavDiscovery {
             override fun onViewDetachedFromWindow(v: View) = finish()
         }
         try {
-            if (root.viewTreeObserver.isAlive) {
-                root.viewTreeObserver.addOnGlobalLayoutListener(layoutListener)
+            val observer = root.viewTreeObserver
+            if (observer.isAlive) {
+                registeredObserver = observer
+                observer.addOnGlobalLayoutListener(layoutListener)
             }
         } catch (_: Throwable) {
             // Fall through to timed retries.

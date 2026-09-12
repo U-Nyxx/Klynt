@@ -1,14 +1,6 @@
 package com.unyxx.act.xposed.prefs
 
 import android.content.SharedPreferences
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.channels.awaitClose
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.callbackFlow
-import kotlinx.coroutines.launch
-import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Read-only view of the module preferences from inside a hooked app
@@ -33,27 +25,30 @@ class RemotePrefs private constructor(
             INSTANCE ?: error("RemotePrefs not initialized. Call init() first.")
     }
 
-    private val changeCallbacks = ConcurrentHashMap<String, MutableSet<(Boolean) -> Unit>>()
-    private val listener =
-        SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-            changeCallbacks[key]?.forEach { it(prefs.getBoolean(key, false)) }
-        }
-
-    init {
-        prefs.registerOnSharedPreferenceChangeListener(listener)
-    }
-
     /**
-     * Best-effort refresh of the backing store before a read burst.
-     * Framework-backed remote prefs push changes via listener; this
-     * extra round-trip guards file-backed implementations against
-     * stale reads. Never throws.
+     * One consistent snapshot of everything a resume pass needs.
+     *
+     * Read ONCE per `onResumed` and passed down as [GlassSettings]:
+     * repeated IPC reads mid-pass could straddle a manager write and
+     * mix old intensity with new blur. Snapshot-then-use keeps a pass
+     * self-consistent and cuts binder round-trips per resume to five.
      */
-    fun reload() {
-        try {
-            prefs.all
-        } catch (_: Throwable) {
-        }
+    fun glassSettings(packageName: String): GlassSettings {
+        val globalOn = prefs.getBoolean(PrefsSchema.GLOBAL_LIQUID_GLASS_ENABLED, true)
+        val appOn = prefs.getBoolean(
+            PrefsSchema.appKey(packageName, PrefsSchema.Feature.LIQUID_GLASS_ENABLED),
+            PrefsSchema.Feature.LIQUID_GLASS_ENABLED.defaultValue
+        )
+        return GlassSettings(
+            globalOn = globalOn,
+            appOn = appOn,
+            intensity = prefs.getFloat(PrefsSchema.intensityKey(packageName), 1f),
+            cornerDp = prefs.getFloat(PrefsSchema.cornerKey(packageName), 999f),
+            blur = prefs.getBoolean(
+                PrefsSchema.appKey(packageName, PrefsSchema.Feature.BLUR_ENABLED),
+                PrefsSchema.Feature.BLUR_ENABLED.defaultValue
+            )
+        )
     }
 
     fun getBoolean(key: String, default: Boolean = false): Boolean =
@@ -68,41 +63,21 @@ class RemotePrefs private constructor(
     fun getFloat(key: String, default: Float): Float =
         prefs.getFloat(key, default)
 
-    fun observeBoolean(key: String): StateFlow<Boolean> {
-        val initial = prefs.getBoolean(key, false)
-        val stateFlow = MutableStateFlow(initial)
-
-        val scope = CoroutineScope(Dispatchers.IO)
-        val flow = callbackFlow {
-            val channel = this
-            channel.trySend(initial)
-
-            val callback: (Boolean) -> Unit = { value ->
-                channel.trySend(value)
-            }
-            changeCallbacks.computeIfAbsent(key) { ConcurrentHashMap.newKeySet() }
-                .add(callback)
-
-            awaitClose {
-                changeCallbacks[key]?.remove(callback)
-            }
-        }
-
-        scope.launch {
-            flow.collect { stateFlow.value = it }
-        }
-
-        return stateFlow
-    }
-
     fun isFeatureEnabled(packageName: String, feature: PrefsSchema.Feature): Boolean {
         val key = PrefsSchema.appKey(packageName, feature)
         return prefs.getBoolean(key, feature.defaultValue)
     }
+}
 
-    fun observeFeature(
-        packageName: String,
-        feature: PrefsSchema.Feature
-    ): StateFlow<Boolean> =
-        observeBoolean(PrefsSchema.appKey(packageName, feature))
+/**
+ * Consistent per-resume snapshot — see [RemotePrefs.glassSettings].
+ */
+data class GlassSettings(
+    val globalOn: Boolean,
+    val appOn: Boolean,
+    val intensity: Float,
+    val cornerDp: Float,
+    val blur: Boolean
+) {
+    val active: Boolean get() = globalOn && appOn
 }

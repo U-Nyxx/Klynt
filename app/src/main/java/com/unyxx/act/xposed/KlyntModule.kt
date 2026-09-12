@@ -70,7 +70,6 @@ class KlyntModule : XposedModule() {
     }
 
     private fun onTargetActivityResumed(activity: Activity, pkg: String, prefs: RemotePrefs) {
-        prefs.reload()
         val sink: (String) -> Unit = { msg -> log(Log.INFO, TAG, msg) }
         try {
             when {
