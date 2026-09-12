@@ -36,6 +36,8 @@ object GhostDriver {
         val bar: KlyntGhostBar,
         val hidden: List<View>,
         val tabs: List<View>,
+        /** Cover view whose full bounds our pill must blanket, if any. */
+        val cover: View?,
         var layoutListener: ViewTreeObserver.OnGlobalLayoutListener? = null,
         var observer: ViewTreeObserver? = null
     )
@@ -75,19 +77,31 @@ object GhostDriver {
         if (existing != null) restore(decor)
 
         val hidden = mutableListOf<View>()
-        // Hide the pill ROW (common parent) when it wraps only the tabs;
-        // otherwise hide the tab views individually. INVISIBLE keeps layout.
-        val rowParent = commonParent(mapping.tabs)
-        val hideTarget: View? = if (rowParent != null && wrapsOnlyTabs(rowParent, mapping.tabs)) {
-            rowParent
-        } else null
-        if (hideTarget != null) {
-            hideTarget.visibility = View.INVISIBLE
-            hidden.add(hideTarget)
+        // Hide the COVER: highest ancestor inside the bottom band whose
+        // bounds enclose the bar. This kills both the tab views AND the
+        // container background Telegram paints manually in dispatchDraw
+        // (a painted rect ignores child INVISIBLE — hiding tabs alone
+        // leaves the original bar peeking around our pill: "tumpang tindih").
+        // INVISIBLE (never GONE/remove) keeps layout slot + insets intact.
+        val cover = findCover(decor, mapping.tabs)
+        if (cover != null) {
+            cover.visibility = View.INVISIBLE
+            hidden.add(cover)
         } else {
-            mapping.tabs.forEach {
-                it.visibility = View.INVISIBLE
-                hidden.add(it)
+            // Fallback: pill row when it wraps only tabs, else tabs solo.
+            val rowParent = commonParent(mapping.tabs)
+            val hideTarget: View? =
+                if (rowParent != null && wrapsOnlyTabs(rowParent, mapping.tabs)) {
+                    rowParent
+                } else null
+            if (hideTarget != null) {
+                hideTarget.visibility = View.INVISIBLE
+                hidden.add(hideTarget)
+            } else {
+                mapping.tabs.forEach {
+                    it.visibility = View.INVISIBLE
+                    hidden.add(it)
+                }
             }
         }
 
@@ -121,7 +135,7 @@ object GhostDriver {
             hidden.forEach { safeVisible(it) }
             return false
         }
-        val state = GhostState(overlay, bar, hidden, mapping.tabs)
+        val state = GhostState(overlay, bar, hidden, mapping.tabs, cover)
         states[decor] = state
         syncGeometry(decor, state)
         bindTracking(decor, state)
@@ -265,6 +279,36 @@ object GhostDriver {
         return Mapping(best, best.map { labelOf(it) })
     }
 
+    /**
+     * Highest ancestor of the tabs that still lives inside the bottom
+     * band (bottom edge ≥85% screen, height ≤35%, width ≥50%). That view's
+     * bounds are the painted bar region — hiding it removes the bar AND
+     * its manually-painted background in one move.
+     */
+    private fun findCover(decor: ViewGroup, tabs: List<View>): View? {
+        val screenH = decor.resources.displayMetrics.heightPixels
+        val screenW = decor.resources.displayMetrics.widthPixels
+        if (screenH <= 0 || screenW <= 0) return null
+        var v: View? = tabs.firstOrNull() ?: return null
+        var best: View? = null
+        while (v != null && v !== decor) {
+            try {
+                val b = boundsOf(v)
+                val w = b[2] - b[0]
+                val h = b[3] - b[1]
+                if (b[3] >= (screenH * 0.85).toInt() &&
+                    h in 1..(screenH * 0.35).toInt() &&
+                    w >= (screenW * 0.5).toInt()
+                ) {
+                    best = v
+                }
+            } catch (_: Throwable) {
+            }
+            v = v.parent as? View
+        }
+        return best
+    }
+
     private fun commonParent(tabs: List<View>): ViewGroup? {
         val p = tabs.firstOrNull()?.parent as? ViewGroup ?: return null
         return if (tabs.all { it.parent === p }) p else null
@@ -307,8 +351,27 @@ object GhostDriver {
 
     private fun syncGeometry(decor: ViewGroup, state: GhostState) {
         try {
-            // Union of the live tabs' window rects, converted to decor
-            // coordinates (= overlay coordinates, overlay fills decor).
+            val decorLoc = IntArray(2)
+            decor.getLocationInWindow(decorLoc)
+            // Prefer the COVER bounds: our pill must blanket the entire
+            // painted bar region (tabs union is smaller and lets the
+            // original background peek around the edges).
+            val cover = state.cover
+            if (cover != null && cover.isAttachedToWindow) {
+                val loc = IntArray(2)
+                cover.getLocationInWindow(loc)
+                val w = if (cover.width > 0) cover.width else cover.measuredWidth
+                val h = if (cover.height > 0) cover.height else cover.measuredHeight
+                if (w > 0 && h > 0) {
+                    state.bar.setBarRect(
+                        loc[0] - decorLoc[0], loc[1] - decorLoc[1],
+                        loc[0] - decorLoc[0] + w, loc[1] - decorLoc[1] + h
+                    )
+                    state.bar.labels = state.tabs.map { labelOf(it) }
+                    return
+                }
+            }
+            // Fallback: union of the live tabs' window rects.
             var l = Int.MAX_VALUE; var t = Int.MAX_VALUE
             var rgt = Int.MIN_VALUE; var b = Int.MIN_VALUE
             var any = false
@@ -324,8 +387,6 @@ object GhostDriver {
                 any = true
             }
             if (!any) return
-            val decorLoc = IntArray(2)
-            decor.getLocationInWindow(decorLoc)
             val r = Rect(
                 l - decorLoc[0], t - decorLoc[1],
                 rgt - decorLoc[0], b - decorLoc[1]
