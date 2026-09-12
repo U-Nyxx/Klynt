@@ -22,8 +22,8 @@ android {
         // Older rooted phones stay on v1.0.7 and below.
         minSdk = 33
         targetSdk = 35
-        versionCode = 10
-        versionName = "1.0.8"
+        versionCode = 11
+        versionName = "1.0.9"
         // Strip locales bundled by AARs (we ship en + in only).
         resourceConfigurations += listOf("en", "in")
         // Real devices on minSdk 30 are arm64; shipping x86/32-bit .so
