@@ -20,8 +20,8 @@ android {
         applicationId = "com.unyxx.act"
         minSdk = 30
         targetSdk = 35
-        versionCode = 7
-        versionName = "1.0.5"
+        versionCode = 8
+        versionName = "1.0.6"
         // Strip locales bundled by AARs (we ship en + in only).
         resourceConfigurations += listOf("en", "in")
         // Real devices on minSdk 30 are arm64; shipping x86/32-bit .so
