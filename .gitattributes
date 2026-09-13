@@ -1,0 +1,26 @@
+# Linguist: make GitHub bar reflect real stack (Kotlin + AGSL embedded + XML)
+*.kt linguist-language=Kotlin
+*.kts linguist-language=Kotlin
+*.agsl linguist-language=GLSL
+*.xml linguist-language=XML
+*.gradle linguist-language=Gradle
+*.py linguist-language=Python
+*.sh linguist-language=Shell
+
+# Vendored / generated — don't count toward language bar
+explore/** linguist-vendored=true
+.gradle/** linguist-generated=true
+.kotlin/** linguist-generated=true
+build/** linguist-generated=true
+app/build/** linguist-generated=true
+*.apk linguist-generated=true
+*.a linguist-generated=true
+*.so linguist-generated=true
+
+# AGSL is embedded in Kotlin string (KlyntGlassShader.kt) — keep counted,
+# but standalone .agsl files (future split) should be GLSL for highlighting
+*.agsl linguist-language=GLSL
+
+# Docs not code
+*.md linguist-documentation=true
+LICENSE linguist-documentation=true

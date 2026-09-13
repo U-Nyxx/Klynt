@@ -1,0 +1,23 @@
+name: Bug report
+description: Report a hook, glass, or manager bug
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Run `bash tools/bugreport.sh > bugreport.txt` and paste below. Need SOC + thermal + target version.
+  - type: textarea
+    id: bug
+    attributes:
+      label: What happened?
+      placeholder: Pill missing on Telegram 10.14 / Dimensity 700
+    validations: { required: true }
+  - type: textarea
+    id: log
+    attributes:
+      label: bugreport.txt / logcat KLYNT
+      render: shell
+  - type: input
+    id: device
+    attributes:
+      label: Device + SOC + Android
+      placeholder: RedMagic 11 Pro+ / Snapdragon 8 Gen3 / Android 14

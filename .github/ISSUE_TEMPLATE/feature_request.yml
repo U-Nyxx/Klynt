@@ -1,0 +1,8 @@
+name: Feature request
+description: Suggest a glass / hook / manager improvement
+labels: [enhancement]
+body:
+  - type: textarea
+    id: idea
+    attributes: { label: Idea, placeholder: Add OS-wide SystemUI glass }
+    validations: { required: true }
