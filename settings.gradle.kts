@@ -16,6 +16,8 @@ dependencyResolutionManagement {
         google()
         maven("https://maven.pkg.jetbrains.space/kotlin/p/kotlin/maven")
         maven("https://api.xposed.info/")
+        mavenLocal()
+        maven("https://jitpack.io")
     }
 }
 
