@@ -182,7 +182,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) — dev setup, AGSL tier rules, codename 
 
 ## Credits
 
-- [KLYNT Glass Engine](docs/GLASS_ENGINE.md) — proprietary (AGSL + RenderEffect, no QWEA0/MDC)
+- [Velra](https://github.com/U-Nyxx/velra) — Liquid Glass Engine (`io.github.u-nyxx:velra`) — extracted from Klynt ([KlyntGlassShader.kt](app/src/main/java/com/unyxx/act/liquidglass/engine/KlyntGlassShader.kt), [VelraGlassShader.kt](https://github.com/U-Nyxx/velra/blob/main/velra/src/main/java/io/github/u_nyxx/velra/VelraGlassShader.kt)) — AGSL + RenderEffect, no QWEA0/MDC — see [docs/GLASS_ENGINE.md](docs/GLASS_ENGINE.md)
 - [LSPosed](https://github.com/LSPosed/LSPosed) + [libxposed](https://github.com/libxposed/api) — Module framework
 - [Material Design 3](https://m3.material.io/) — UI components
 
