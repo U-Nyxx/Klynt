@@ -49,4 +49,10 @@
     <string name="update_hint_network">No connection. Check internet, then retry.</string>
     <string name="update_hint_rate">GitHub rate-limited. Wait a few minutes, then retry.</string>
     <string name="update_rotation_warn">Coming from v1.0.3 or older? Uninstall the old app first (new signing key) or install will fail silently.</string>
+    <string name="hero_active">Active</string>
+    <string name="hero_inactive">Not active</string>
+    <string name="hero_checking">Checking…</string>
+    <string name="hero_ready">Scope enabled — glass ready</string>
+    <string name="hero_enable_scope">Enable scope in LSPosed manager</string>
+    <string name="hero_status_desc">Module status</string>
 </resources>

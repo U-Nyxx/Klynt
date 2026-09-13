@@ -46,7 +46,10 @@ object ServiceLocator {
             notifyImmediately = false
         )
         try {
-            writeManagerVersion(com.unyxx.act.BuildConfig.VERSION_NAME)
+            writeManagerVersion(
+                "${com.unyxx.act.BuildConfig.VERSION_NAME}/" +
+                    com.unyxx.act.BuildConfig.BUILD_CODENAME
+            )
         } catch (_: Throwable) {
         }
         logEvent("Manager started")

@@ -52,14 +52,16 @@ import com.unyxx.act.manager.viewmodel.SetupCheck
 fun HomeScreen(viewModel: HomeViewModel) {
     val stats by viewModel.stats.collectAsState()
     val isModuleActive by viewModel.isModuleActive.collectAsState()
+    val loaded by viewModel.loaded.collectAsState()
     val checks by viewModel.checks.collectAsState()
     val context = LocalContext.current
     val appVersion = remember {
-        try {
+        val v = try {
             context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "1.0.1"
         } catch (_: Exception) {
             "1.0.1"
         }
+        "$v/${com.unyxx.act.BuildConfig.BUILD_CODENAME}"
     }
 
     Scaffold(
@@ -81,10 +83,7 @@ fun HomeScreen(viewModel: HomeViewModel) {
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             item {
-                HeroCard(appVersion = appVersion)
-            }
-            item {
-                StatusCard(isModuleActive = isModuleActive)
+                HeroCard(appVersion = appVersion, isModuleActive = isModuleActive, loaded = loaded)
             }
             item {
                 SetupChecklistCard(
@@ -99,104 +98,89 @@ fun HomeScreen(viewModel: HomeViewModel) {
     }
 }
 
+/**
+ * Status hero in the LSPosed-summary style: big state title + version
+ * lines left, oversized status glyph right. Merges the old hero and
+ * status cards so state lives in exactly one place.
+ *
+ * While the binder read is in flight ([loaded] == false) the card stays
+ * neutral instead of flashing red — cold start used to paint
+ * `errorContainer` for a frame before `refresh()` returned.
+ */
 @Composable
-private fun HeroCard(appVersion: String) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer
-        )
-    ) {
-        Column(
-            modifier = Modifier.padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(72.dp)
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(MaterialTheme.colorScheme.primary),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Home,
-                    contentDescription = "KLYNT",
-                    tint = MaterialTheme.colorScheme.onPrimary,
-                    modifier = Modifier.size(36.dp)
-                )
-            }
-            Spacer(modifier = Modifier.size(12.dp))
-            Text(
-                "KLYNT",
-                style = MaterialTheme.typography.headlineMedium,
-                color = MaterialTheme.colorScheme.onPrimaryContainer
-            )
-            Text(
-                "Liquid Glass Floating Bottom Nav",
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
-            )
-            Spacer(modifier = Modifier.size(8.dp))
-            Text(
-                "v$appVersion · libxposed API 101",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.6f)
-            )
-        }
+private fun HeroCard(appVersion: String, isModuleActive: Boolean, loaded: Boolean) {
+    val container = when {
+        !loaded -> MaterialTheme.colorScheme.surfaceContainerHigh
+        isModuleActive -> MaterialTheme.colorScheme.tertiaryContainer
+        else -> MaterialTheme.colorScheme.errorContainer
     }
-}
-
-@Composable
-private fun StatusCard(isModuleActive: Boolean) {
+    val onContainer = when {
+        !loaded -> MaterialTheme.colorScheme.onSurface
+        isModuleActive -> MaterialTheme.colorScheme.onTertiaryContainer
+        else -> MaterialTheme.colorScheme.onErrorContainer
+    }
+    val title = when {
+        !loaded -> stringResource(R.string.hero_checking)
+        isModuleActive -> stringResource(R.string.hero_active)
+        else -> stringResource(R.string.hero_inactive)
+    }
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = if (isModuleActive) {
-                MaterialTheme.colorScheme.tertiaryContainer
-            } else {
-                MaterialTheme.colorScheme.errorContainer
-            }
-        )
+        colors = CardDefaults.cardColors(containerColor = container)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .padding(20.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Icon(
-                imageVector = if (isModuleActive) Icons.Filled.CheckCircle else Icons.Filled.Error,
-                contentDescription = null,
-                tint = if (isModuleActive) {
-                    MaterialTheme.colorScheme.onTertiaryContainer
-                } else {
-                    MaterialTheme.colorScheme.onErrorContainer
-                },
-                modifier = Modifier.size(28.dp)
-            )
-            Spacer(modifier = Modifier.size(12.dp))
-            Column {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = if (isModuleActive) "Module Active" else "Module Not Active",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = if (isModuleActive) {
-                        MaterialTheme.colorScheme.onTertiaryContainer
-                    } else {
-                        MaterialTheme.colorScheme.onErrorContainer
-                    }
+                    title,
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = onContainer
+                )
+                Spacer(modifier = Modifier.size(4.dp))
+                Text(
+                    "KLYNT v$appVersion",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = onContainer.copy(alpha = 0.85f)
                 )
                 Text(
-                    text = if (isModuleActive) {
-                        "Scope enabled in LSPosed — glass ready"
-                    } else {
-                        "Enable KLYNT scope in LSPosed manager"
-                    },
+                    "libxposed API 101",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = if (isModuleActive) {
-                        MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.8f)
+                    color = onContainer.copy(alpha = 0.7f)
+                )
+                Text(
+                    if (isModuleActive && loaded) {
+                        stringResource(R.string.hero_ready)
+                    } else if (!loaded) {
+                        stringResource(R.string.hero_checking)
                     } else {
-                        MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.8f)
-                    }
+                        stringResource(R.string.hero_enable_scope)
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = onContainer.copy(alpha = 0.7f)
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .size(84.dp)
+                    .clip(androidx.compose.foundation.shape.CircleShape)
+                    .background(onContainer.copy(alpha = 0.12f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = if (isModuleActive && loaded) {
+                        Icons.Filled.CheckCircle
+                    } else {
+                        Icons.Filled.Error
+                    },
+                    contentDescription = stringResource(R.string.hero_status_desc),
+                    tint = onContainer,
+                    modifier = Modifier.size(52.dp)
                 )
             }
         }

@@ -1,18 +1,28 @@
 package com.unyxx.act.liquidglass.engine
 
 /**
- * KlyntGlass AGSL source — written from scratch for this project.
+ * KlyntGlass AGSL source v2 — true Liquid Glass (iOS 26 language).
  *
- * Technique notes (learned, not copied): rounded-box SDF for the lens
- * mask, rim mask as outer-minus-inner band, refraction by bending sample
- * coordinates toward the center proportional to edge², RGB treated
- * uniformly (no chromatic taps — Mali-safe), vibrancy via luma mix,
- * specular top gradient + rim light + bottom inner shade, dither-free
- * (banding is negligible over live content at these radii).
+ * What v1 had: rounded-box SDF lens, radial refraction, uniform RGB,
+ * specular top + rim, vibrancy luma mix.
  *
- * Deliberately loop-free: backdrop blur comes from the RenderEffect
- * chain (GPU blur node), never from in-shader taps. This keeps the
- * shader cheap on Mali compilers and avoids AGSL's strict loop rules.
+ * What v2 adds:
+ * - **Chromatic aberration**: 3 backdrop taps split along the local
+ *   refract normal (R/G/B), scaled by `edge² * dispersion`. Mali-safe:
+ *   3 taps, still loop-free. `dispersion == 0` collapses to 1 tap
+ *   (LITE tier) with zero branching cost on the texture unit.
+ * - **SDF-gradient normal**: refraction bends along the true lens
+ *   normal (2 extra SDF evals = pure ALU, no texture cost) instead of
+ *   the radial-to-center hack, so pill ends lens correctly.
+ * - **Bevel rim**: `bevel` uniform widens/narrows the specular band
+ *   per-SOC (flagship wide glow, mid-range thin line).
+ * - **Inner stroke**: 1px light line just inside the edge, the iOS
+ *   "cut glass" signature.
+ *
+ * Cost ledger (texture taps, the only thing Mali bills hard):
+ * FULL = 3 (CA) + 1 (center luminance) = 4; LITE = 1 + 1 = 2.
+ * Backdrop blur always comes from the RenderEffect chain (GPU blur
+ * node), never from in-shader taps.
  *
  * Uniforms are packed by [KlyntGlassView]; keep names in sync.
  */
@@ -26,6 +36,8 @@ uniform float dark;
 uniform float2 press;
 uniform float pressAmount;
 uniform float clearMode;
+uniform float dispersion;
+uniform float bevel;
 
 float sdRoundBox(vec2 p, vec2 b, float r) {
     vec2 q = abs(p) - b + r;
@@ -40,23 +52,42 @@ half4 main(float2 fragCoord) {
     vec2 center = vec2(barRect.x + size.x * 0.5, barRect.y + size.y * 0.5);
     vec2 halfSize = size * 0.5;
     float r = min(cornerRadius, min(halfSize.x, halfSize.y));
-    float d = sdRoundBox(fragCoord - center, halfSize, r);
+    vec2 lp = fragCoord - center;
+    float d = sdRoundBox(lp, halfSize, r);
     if (d > 1.0) {
         return half4(0.0, 0.0, 0.0, 0.0);
     }
     float edge = clamp(d / max(r, 1.0) + 0.5, 0.0, 1.0);
-    vec2 toFrag = fragCoord - center;
-    float dist = max(length(toFrag), 1.0);
-    vec2 dir = toFrag / dist;
+
+    // Lens normal from the SDF gradient (ALU only): correct at the
+    // pill caps, where radial-to-center visibly smears.
+    float e = 1.5;
+    float dx = sdRoundBox(lp + vec2(e, 0.0), halfSize, r) - sdRoundBox(lp - vec2(e, 0.0), halfSize, r);
+    float dy = sdRoundBox(lp + vec2(0.0, e), halfSize, r) - sdRoundBox(lp - vec2(0.0, e), halfSize, r);
+    vec2 n = vec2(dx, dy) / max(length(vec2(dx, dy)), 0.001);
+
     float bend = edge * edge * 14.0 * intensity * (1.0 + clearMode * 0.6);
-    vec2 uv = fragCoord - dir * bend;
+    vec2 uv = fragCoord - n * bend;
     if (pressAmount > 0.0 && press.x >= 0.0) {
         vec2 pd = fragCoord - press;
         float pl = max(length(pd), 1.0);
         float infl = exp(-pl * pl / 16200.0) * pressAmount;
         uv -= (pd / pl) * infl * 10.0;
     }
-    half4 c = backdrop.eval(uv);
+
+    // Chromatic aberration: one tap per channel along the normal.
+    // FULL = 3 taps; dispersion == 0 (LITE) → single achromatic tap.
+    float ca = bend * dispersion;
+    half4 c;
+    if (dispersion > 0.001) {
+        float cr = backdrop.eval(uv - n * ca).r;
+        float cg = backdrop.eval(uv).g;
+        float cb = backdrop.eval(uv + n * ca).b;
+        c = half4(cr, cg, cb, 1.0);
+    } else {
+        c = backdrop.eval(uv);
+    }
+
     float lum = dot(c.rgb, vec3(0.299, 0.587, 0.114));
     c.rgb = mix(vec3(lum), c.rgb, 1.35);
     // Apple's tint rule: ~30% light, ~50% dark. Clear variant thins
@@ -71,8 +102,14 @@ half4 main(float2 fragCoord) {
     vec2 uvN = (fragCoord - barRect.xy) / max(size, vec2(1.0));
     float top = clamp(1.0 - uvN.y * 3.0, 0.0, 1.0) * (1.0 - edge * 0.5);
     c.rgb += top * 0.10 * mix(1.0, 0.6, dark) * shadeGain;
-    float rim = smoothstep(0.55, 1.0, edge);
+    // Bevel rim: width scales per-SOC so mid-range keeps a crisp thin
+    // line where flagship gets a wide glow.
+    float rimLo = clamp(0.55 - bevel * 0.5, 0.0, 0.9);
+    float rim = smoothstep(rimLo, 1.0, edge);
     c.rgb += rim * 0.12 * shadeGain;
+    // Inner stroke: the cut-glass hairline just inside the edge.
+    float stroke = smoothstep(0.86, 0.97, edge) * (1.0 - smoothstep(0.97, 1.0, edge));
+    c.rgb += stroke * mix(0.22, 0.14, dark);
     float bot = clamp((uvN.y - 0.75) * 4.0, 0.0, 1.0);
     c.rgb *= 1.0 - bot * 0.10 * shadeGain;
     c.a = 1.0;

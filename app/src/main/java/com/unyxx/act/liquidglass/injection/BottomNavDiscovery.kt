@@ -37,6 +37,20 @@ object BottomNavDiscovery {
     )
 
     /**
+     * Live cancel handles per armed root. `disarm()` flips [finished]
+     * so in-flight layout/timer probes no-op, then removes listeners.
+     * Without this, toggle-off only unwrapped views while the old probe
+     * kept re-wrapping on the next layout pass.
+     */
+    private data class Probe(
+        val finished: AtomicBoolean,
+        val cleanup: () -> Unit
+    )
+
+    private val probes: MutableMap<ViewGroup, Probe> =
+        java.util.Collections.synchronizedMap(java.util.WeakHashMap())
+
+    /**
      * Iterative, budgeted depth-first collection. The old recursion blew
      * the stack (`StackOverflowError`, swallowed as silent `false`) on
      * heavy chat hierarchies — exactly where the bar matters most.
@@ -66,6 +80,31 @@ object BottomNavDiscovery {
         if (density > 0f) px / density else px.toFloat()
 
     /**
+     * Drops the armed probe for [root] without running [find].
+     * Called when the feature is toggled off so a stale probe from an
+     * earlier resume can't re-wrap on the next layout pass ("dimatikan
+     * tapi muncul lagi"). Safe to call when nothing is armed.
+     */
+    fun disarm(root: ViewGroup) {
+        val probe = try {
+            probes.remove(root)
+        } catch (_: Throwable) {
+            null
+        }
+        // Flag first so an in-flight layout/timer probe no-ops, then
+        // pull listeners. Both steps are idempotent.
+        try {
+            probe?.finished?.set(true)
+        } catch (_: Throwable) {
+        }
+        try {
+            probe?.cleanup?.invoke()
+        } catch (_: Throwable) {
+        }
+        armed.remove(root)
+    }
+
+    /**
      * @param root decor view of the target activity.
      * @param find returns true once the glass is injected (or already present).
      * @param onExhausted runs once when timed retries end with no match, so
@@ -89,6 +128,7 @@ object BottomNavDiscovery {
 
         fun cleanup() {
             armed.remove(root)
+            probes.remove(root)
             handler.removeCallbacksAndMessages(null)
             try {
                 registeredObserver
@@ -106,6 +146,13 @@ object BottomNavDiscovery {
 
         fun finish() {
             if (finished.compareAndSet(false, true)) cleanup()
+        }
+
+        // Registered BEFORE the first probe so disarm() can cancel us
+        // even if find() throws on the initial pass.
+        try {
+            probes[root] = Probe(finished) { try { cleanup() } catch (_: Throwable) {} }
+        } catch (_: Throwable) {
         }
 
         fun probeTimer() {

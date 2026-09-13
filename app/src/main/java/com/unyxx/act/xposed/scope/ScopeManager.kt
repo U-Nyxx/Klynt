@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.pm.PackageManager
 import com.unyxx.act.util.Logger
 import com.unyxx.act.xposed.hooks.telegram.TelegramVariants
+import com.unyxx.act.xposed.hooks.twitter.TwitterVariants
 import java.util.concurrent.ConcurrentHashMap
 
 class ScopeManager(private val context: Context) {
@@ -26,18 +27,20 @@ class ScopeManager(private val context: Context) {
             } catch (_: PackageManager.NameNotFoundException) {}
         }
 
-        // Twitter/X
-        try {
-            val pkg = "com.twitter.android"
-            val info = pm.getApplicationInfo(pkg, 0)
-            result[pkg] = TargetAppInfo(
-                packageName = pkg,
-                label = pm.getApplicationLabel(info).toString(),
-                icon = pm.getApplicationIcon(info),
-                family = AppFamily.TWITTER,
-                version = versionOf(pm, pkg)
-            )
-        } catch (_: PackageManager.NameNotFoundException) {}
+        // Twitter/X (variants set, single package today — keep the
+        // indirection so a fork never needs a second edit site).
+        TwitterVariants.ALL.forEach { pkg ->
+            try {
+                val info = pm.getApplicationInfo(pkg, 0)
+                result[pkg] = TargetAppInfo(
+                    packageName = pkg,
+                    label = pm.getApplicationLabel(info).toString(),
+                    icon = pm.getApplicationIcon(info),
+                    family = AppFamily.TWITTER,
+                    version = versionOf(pm, pkg)
+                )
+            } catch (_: PackageManager.NameNotFoundException) {}
+        }
 
         return result
     }

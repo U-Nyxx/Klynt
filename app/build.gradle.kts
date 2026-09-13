@@ -22,8 +22,15 @@ android {
         // Older rooted phones stay on v1.0.7 and below.
         minSdk = 33
         targetSdk = 35
-        versionCode = 11
-        versionName = "1.0.9"
+        versionCode = 12
+        versionName = "1.0.10"
+        // Release codename (rotates every release): baked into BuildConfig,
+        // the APK filename, the manager UI and hook logs. Sanitized to
+        // [A-Za-z0-9_-] so it can never break BuildConfig.java or the
+        // workflow glob (must match release.yml's tr filter).
+        val codename = rootProject.file("release-codename.txt")
+            .takeIf { it.exists() }?.readText()?.filter { it.isLetterOrDigit() || it == '-' || it == '_' }?.takeIf { it.isNotEmpty() } ?: "Dev"
+        buildConfigField("String", "BUILD_CODENAME", "\"$codename\"")
         // Strip locales bundled by AARs (we ship en + in only).
         resourceConfigurations += listOf("en", "in")
         // Real devices on minSdk 30 are arm64; shipping x86/32-bit .so

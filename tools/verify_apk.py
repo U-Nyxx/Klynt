@@ -5,24 +5,35 @@ Checks (all learned from real shipped bugs):
   - META-INF/xposed/{java_init.list,module.prop,scope.list} present
   - minApiVersion/targetApiVersion == 101, staticScope == false
   - scope.list has exactly 27 entries (26 Telegram + Twitter)
+  - every scope package is declared in <queries> (Android 11+ package
+    visibility: missing entry = target invisible in Apps tab but still
+    hooked — the NekoX drift)
   - no legacy leftovers (assets/xposed_init, assets/module.prop, arrays.xml)
   - dex contains the hook entry + Fase-3 symbols, and NOT dead classes
   - resources.arsc contains the tune strings (EN base; ID overlay separate)
+  - APK size budget (diet tracking, hard fail on bloat)
   - reports APK + dex size (diet tracking)
 
 Usage: python3 tools/verify_apk.py <apk>
 Exit 0 = pass, 1 = fail (prints FAIL lines).
 """
+import os
 import sys
 import zipfile
 
 EXPECTED_SCOPE = 27
+# Hard ceiling: releases ship ~14MB. Fail loudly before Play Protect /
+# low-storage installs start hurting rooted users.
+MAX_APK_MB = 20.0
 REQUIRED_DEX_SYMBOLS = [
     b"com/unyxx/act/xposed/KlyntModule",
     b"GLASS_CORNER_DP",
     b"TunePanel",
     b"GlassPreview",
     b"glassSettings",
+    b"dispersion",
+    b"disarm",
+    b"syncSelection",
 ]
 ABSENT_DEX_SYMBOLS = [
     b"KlyntModuleBase",
@@ -77,10 +88,20 @@ def main(apk_path):
                 fail(f"module.prop missing '{want}'")
                 errors += 1
     if scope is not None:
-        count = len([l for l in scope.decode().splitlines() if l.strip()])
-        if count != EXPECTED_SCOPE:
-            fail(f"scope.list has {count} entries, expected {EXPECTED_SCOPE}")
+        lines = [l for l in scope.decode().splitlines() if l.strip()]
+        if len(lines) != EXPECTED_SCOPE:
+            fail(f"scope.list has {len(lines)} entries, expected {EXPECTED_SCOPE}")
             errors += 1
+        # Scope/queries sync: every hooked package must be visible to
+        # PackageManager on API 30+, else the Apps tab misses it.
+        manifest_src = os.path.join("app", "src", "main", "AndroidManifest.xml")
+        if os.path.exists(manifest_src):
+            with open(manifest_src, encoding="utf-8") as f:
+                manifest = f.read()
+            for pkg in lines:
+                if f'android:name="{pkg.strip()}"' not in manifest:
+                    fail(f"scope package {pkg.strip()} missing from <queries>")
+                    errors += 1
 
     for legacy in LEGACY_PATHS:
         if legacy in names:
@@ -111,6 +132,10 @@ def main(apk_path):
     apk_mb = sum(i.file_size for i in z.infolist()) / 1048576
     dex_mb = len(dex) / 1048576
     print(f"size: APK={apk_mb:.1f}MB dex={dex_mb:.1f}MB entries={len(names)}")
+    # Debug builds are fat (no R8); only enforce on release artifacts.
+    if apk_mb > MAX_APK_MB and "release" in apk_path.lower():
+        fail(f"APK {apk_mb:.1f}MB exceeds {MAX_APK_MB:.0f}MB diet budget")
+        errors += 1
 
     if errors == 0:
         print("PASS: APK gate green")

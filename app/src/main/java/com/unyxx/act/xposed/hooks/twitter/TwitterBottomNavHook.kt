@@ -46,6 +46,7 @@ object TwitterBottomNavHook {
         if (!settings.active) {
             GhostDriver.disarmRetry(decorView)
             GhostDriver.restore(decorView)
+            BottomNavDiscovery.disarm(decorView)
             BottomNavWrapper.unwrapAll(decorView, packageName)
             return
         }

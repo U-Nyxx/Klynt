@@ -6,8 +6,7 @@ import android.view.ViewGroup
 import android.view.ViewTreeObserver
 import android.widget.FrameLayout
 import com.unyxx.act.liquidglass.engine.KlyntGlassView
-import com.unyxx.act.liquidglass.engine.KlyntTier
-import com.unyxx.act.liquidglass.engine.selectGlassTier
+import com.unyxx.act.liquidglass.engine.configure
 import com.unyxx.act.liquidglass.injection.BottomNavWrapper
 import com.unyxx.act.util.SocDetector
 import java.util.Collections
@@ -84,9 +83,12 @@ object GhostDriver {
 
         val existing = states[decor]
         if (existing != null && sameTabs(existing, mapping)) {
-            // Still valid: re-sync geometry (rotation, keyboard) + labels.
+            // Still valid: re-sync geometry (rotation, keyboard) + labels
+            // + selection (swipe/deep-link/back-stack move the real tabs
+            // without tapping our bar — indicator used to stick at 0).
             syncGeometry(decor, existing)
             existing.bar.labels = mapping.labels
+            syncSelection(existing)
             return true
         }
         // Stale mapping (rebuilt hierarchy): tear down, rebuild below.
@@ -133,17 +135,11 @@ object GhostDriver {
         // Apple's layer rule: glass layer and overlay layer stay separate
         // views so glyphs/labels are never refracted, only the backdrop.
         val glass = KlyntGlassView(decor.context)
-        glass.intensity = intensity
-        glass.clearMode = clear
         try {
-            val profile = SocDetector.resolve(decor.context)
-            val lowRam = isLowRamDevice(decor.context)
-            glass.tier = selectGlassTier(
-                profile.frostedFallback, lowRam, isThrottledNow(decor.context)
-            )
+            glass.configure(SocDetector.resolve(decor.context), intensity, true)
         } catch (_: Throwable) {
-            glass.tier = KlyntTier.SCRIM
         }
+        glass.clearMode = clear
         val bar = KlyntGhostBar(decor.context).apply {
             chromeOnly = true
             clearDimming = clear
@@ -450,6 +446,20 @@ object GhostDriver {
     }
 
     // ---- geometry tracking ----
+
+    /**
+     * Mirrors the real tab selection into our indicator. Telegram moves
+     * tabs via swipe, deep-link and back-stack without touching our bar;
+     * without this the highlight sticks wherever the user last tapped.
+     * Best-effort: no selected tab found → keep current index.
+     */
+    private fun syncSelection(state: GhostState) {
+        try {
+            val idx = state.tabs.indexOfFirst { it.isSelected || it.isActivated }
+            if (idx >= 0) state.bar.selectedIndex = idx
+        } catch (_: Throwable) {
+        }
+    }
 
     private fun syncGeometry(decor: ViewGroup, state: GhostState) {
         try {

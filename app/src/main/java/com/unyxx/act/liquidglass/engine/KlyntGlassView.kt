@@ -8,24 +8,36 @@ import android.graphics.RectF
 import android.graphics.RenderEffect
 import android.graphics.RuntimeShader
 import android.graphics.Shader
+import android.os.PowerManager
 import android.util.AttributeSet
+import android.view.Choreographer
 import android.view.View
+import java.util.concurrent.Executor
 
 /**
  * Proprietary KlyntGlass background: live GPU glass over real content.
  *
  * Pipeline (all ours, zero third-party): the view itself draws nothing;
- * a RenderEffect chain processes its backdrop — GPU blur node first,
- * then [KLYNT_GLASS_SHADER] (SDF lens, rim light, specular, tint,
+ * a RenderEffect chain processes its backdrop — GPU blur node first
+ * (radius per-SOC), then [KLYNT_GLASS_SHADER] (SDF lens, SDF-normal
+ * refraction, chromatic aberration, rim bevel, specular, tint,
  * vibrancy) in one pass. No bitmap capture, no per-frame allocation,
- * no QWEA0, no native `.so`, no HWUI-blur dependency (this is a custom
- * shader, not the system's blur path — ROM blur kill-switches don't
- * apply).
+ * no native `.so`, no HWUI-blur dependency (this is a custom shader,
+ * not the system's blur path — ROM blur kill-switches don't apply).
  *
- * Tiers ([KlyntTier]): [KlyntTier.SHADER] full pipeline;
- * [KlyntTier.SCRIM] plain Canvas tint for low-RAM / thermal / reduced
- * transparency / shader failure. Never crashes, never blanks: worst
- * case is a calm translucent pill.
+ * Tiers ([KlyntTier]): [KlyntTier.SHADER] full pipeline (3-tap CA);
+ * [KlyntTier.LITE] same shader with `dispersion = 0` (1 tap, dim
+ * Mali / Exynos-safe); [KlyntTier.SCRIM] plain Canvas tint for
+ * low-RAM / thermal / reduced transparency / shader failure. Never
+ * crashes, never blanks: worst case is a calm translucent pill.
+ *
+ * Thermal (Exynos/Dimensity can heat *after* wrap): a
+ * [PowerManager.OnThermalStatusChangedListener] downgrades live to
+ * SCRIM at MODERATE+ and restores the previous tier when the skin
+ * cools. Listener is bound to the window (attach/detach), never leaked.
+ *
+ * Motion (Apple rule): the element materializes by springing lens
+ * bending 0→target via [GlassMotion], never by opacity crossfade.
  */
 class KlyntGlassView @JvmOverloads constructor(
     context: Context,
@@ -44,30 +56,34 @@ class KlyntGlassView @JvmOverloads constructor(
             pushUniforms()
         }
 
-    private var materializeAnim: android.animation.ValueAnimator? = null
-
-    /**
-     * Materialize transition (Apple rule): the element appears by
-     * modulating lens bending 0→target, never by opacity crossfade.
-     * Call right after the overlay is attached.
-     */
-    fun animateIntensityTo(target: Float) {
-        val to = target.coerceIn(0f, 1f)
-        materializeAnim?.cancel()
-        intensity = 0f
-        materializeAnim = android.animation.ValueAnimator.ofFloat(0f, to).apply {
-            duration = 280
-            interpolator = android.view.animation.DecelerateInterpolator()
-            addUpdateListener {
-                intensity = it.animatedValue as Float
-            }
-            start()
+    /** Chromatic-aberration gain; 0 collapses to the achromatic tap. */
+    var dispersion: Float = 0.10f
+        set(value) {
+            field = value.coerceIn(0f, 0.30f)
+            pushUniforms()
         }
-    }
+
+    /** 0..1 specular rim width (wide glow flagship, thin line mid). */
+    var bevel: Float = 0.5f
+        set(value) {
+            field = value.coerceIn(0f, 1f)
+            pushUniforms()
+        }
+
+    /** Backdrop blur radius px (per-SOC: 18 flagship / 12 mid / 8 low). */
+    var blurRadius: Float = 18f
+        set(value) {
+            val v = value.coerceIn(4f, 28f)
+            if (v != field) {
+                field = v
+                rebuildEffect()
+            }
+        }
 
     var tier: KlyntTier = KlyntTier.SHADER
         set(value) {
             field = value
+            if (value != KlyntTier.SCRIM) preThermalTier = value
             rebuildEffect()
         }
 
@@ -90,6 +106,17 @@ class KlyntGlassView @JvmOverloads constructor(
         style = Paint.Style.FILL
         color = if (dark) 0xD61E2A3A.toInt() else 0xD6FFFFFF.toInt()
     }
+
+    // ---- thermal live-downgrade (register window-bound, never leak) ----
+    private var preThermalTier: KlyntTier = KlyntTier.SHADER
+    private var thermalListener: PowerManager.OnThermalStatusChangedListener? = null
+
+    // ---- spring motion state ----
+    private var springCallback: Choreographer.FrameCallback? = null
+    private var springPos = 1f
+    private var springVel = 0f
+    private var springTarget = 1f
+    private var lastFrameNs = 0L
 
     init {
         isClickable = false
@@ -116,6 +143,62 @@ class KlyntGlassView @JvmOverloads constructor(
 
     fun clearPress() = setPress(-1f, -1f, 0f)
 
+    /**
+     * Materialize transition (Apple rule): springs lens bending
+     * 0→target with one soft overshoot. Call right after attach.
+     */
+    fun animateIntensityTo(target: Float) {
+        val to = target.coerceIn(0f, 1f)
+        stopSpring()
+        springPos = 0f
+        springVel = 0f
+        springTarget = to
+        intensity = 0f
+        lastFrameNs = 0L
+        val choreographer = try {
+            Choreographer.getInstance()
+        } catch (_: Throwable) {
+            intensity = to
+            return
+        }
+        val cb = object : Choreographer.FrameCallback {
+            override fun doFrame(frameTimeNanos: Long) {
+                if (lastFrameNs == 0L) lastFrameNs = frameTimeNanos
+                val dt = ((frameTimeNanos - lastFrameNs) / 1_000_000_000f)
+                    .coerceIn(0.001f, 0.05f)
+                lastFrameNs = frameTimeNanos
+                // Two half-steps keep 120Hz phones stable without
+                // shrinking the feel tuned at 60Hz.
+                repeat(2) {
+                    val (p, v) = GlassMotion.springStep(
+                        springPos, springVel, springTarget, 170f, 0.72f, dt / 2f
+                    )
+                    springPos = p
+                    springVel = v
+                }
+                intensity = springPos.coerceIn(0f, 1.08f).coerceAtMost(1f)
+                if (GlassMotion.isSettled(springPos, springVel, springTarget)) {
+                    intensity = springTarget
+                    stopSpring()
+                } else {
+                    choreographer.postFrameCallback(this)
+                }
+            }
+        }
+        springCallback = cb
+        choreographer.postFrameCallback(cb)
+    }
+
+    private fun stopSpring() {
+        springCallback?.let {
+            try {
+                Choreographer.getInstance().removeFrameCallback(it)
+            } catch (_: Throwable) {
+            }
+        }
+        springCallback = null
+    }
+
     private fun pushUniforms() {
         val s = shader ?: return
         if (barRect.isEmpty) return
@@ -130,6 +213,9 @@ class KlyntGlassView @JvmOverloads constructor(
             s.setFloatUniform("intensity", intensity)
             s.setFloatUniform("dark", if (dark) 1f else 0f)
             s.setFloatUniform("clearMode", if (clearMode) 1f else 0f)
+            // LITE forces the achromatic single tap in-shader.
+            s.setFloatUniform("dispersion", if (tier == KlyntTier.LITE) 0f else dispersion)
+            s.setFloatUniform("bevel", bevel)
             invalidate()
         } catch (_: Throwable) {
             degradeToScrim()
@@ -137,7 +223,7 @@ class KlyntGlassView @JvmOverloads constructor(
     }
 
     private fun rebuildEffect() {
-        if (tier != KlyntTier.SHADER) {
+        if (tier == KlyntTier.SCRIM) {
             shaderOk = false
             setRenderEffect(null)
             invalidate()
@@ -146,7 +232,7 @@ class KlyntGlassView @JvmOverloads constructor(
         try {
             val s = RuntimeShader(KLYNT_GLASS_SHADER)
             shader = s
-            val blur = RenderEffect.createBlurEffect(18f, 18f, Shader.TileMode.CLAMP)
+            val blur = RenderEffect.createBlurEffect(blurRadius, blurRadius, Shader.TileMode.CLAMP)
             val glass = RenderEffect.createRuntimeShaderEffect(s, "backdrop")
             setRenderEffect(RenderEffect.createChainEffect(glass, blur))
             shaderOk = true
@@ -172,10 +258,53 @@ class KlyntGlassView @JvmOverloads constructor(
         pushUniforms()
     }
 
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        bindThermal()
+    }
+
+    override fun onDetachedFromWindow() {
+        stopSpring()
+        unbindThermal()
+        super.onDetachedFromWindow()
+    }
+
+    private fun bindThermal() {
+        if (thermalListener != null) return
+        try {
+            val pm = context.getSystemService(Context.POWER_SERVICE) as? PowerManager
+                ?: return
+            val mainExecutor = Executor { it.run() }
+            val listener = PowerManager.OnThermalStatusChangedListener { status ->
+                post {
+                    if (status >= PowerManager.THERMAL_STATUS_MODERATE) {
+                        if (tier != KlyntTier.SCRIM) tier = KlyntTier.SCRIM
+                    } else if (tier == KlyntTier.SCRIM && preThermalTier != KlyntTier.SCRIM) {
+                        tier = preThermalTier
+                    }
+                }
+            }
+            pm.addThermalStatusListener(mainExecutor, listener)
+            thermalListener = listener
+        } catch (_: Throwable) {
+            thermalListener = null
+        }
+    }
+
+    private fun unbindThermal() {
+        val listener = thermalListener ?: return
+        thermalListener = null
+        try {
+            val pm = context.getSystemService(Context.POWER_SERVICE) as? PowerManager
+            pm?.removeThermalStatusListener(listener)
+        } catch (_: Throwable) {
+        }
+    }
+
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
-        // SHADER tier draws nothing itself (the RenderEffect IS the
-        // output). SCRIM tier paints a calm translucent pill so the bar
+        // SHADER/LITE tiers draw nothing themselves (the RenderEffect IS
+        // the output). SCRIM paints a calm translucent pill so the bar
         // area is never empty on any device.
         if (!shaderOk && !barRect.isEmpty) {
             val r = barRect.height() / 2f
@@ -185,11 +314,63 @@ class KlyntGlassView @JvmOverloads constructor(
 }
 
 /** Render tiers for [KlyntGlassView]. */
-enum class KlyntTier { SHADER, SCRIM }
+enum class KlyntTier { SHADER, LITE, SCRIM }
 
 /**
  * Pure tier selection (unit-testable): anything weak or hostile gets
  * SCRIM — a visible calm pill — instead of a janky or dead shader.
+ * Mid-range silicon ([highQuality] == false) gets LITE: full lens
+ * geometry, achromatic single tap, cheaper blur.
  */
-fun selectGlassTier(frostedProfile: Boolean, lowRam: Boolean, thermalThrottled: Boolean): KlyntTier =
-    if (frostedProfile || lowRam || thermalThrottled) KlyntTier.SCRIM else KlyntTier.SHADER
+fun selectGlassTier(
+    frostedProfile: Boolean,
+    lowRam: Boolean,
+    thermalThrottled: Boolean,
+    highQuality: Boolean = true
+): KlyntTier =
+    if (frostedProfile || lowRam || thermalThrottled) KlyntTier.SCRIM
+    else if (!highQuality) KlyntTier.LITE
+    else KlyntTier.SHADER
+
+/**
+ * GPU knobs derived from a [SocDetector.Profile].
+ *
+ * RAM/GPU budget per tier: FULL blur 18 + CA, LITE blur 12
+ * achromatic, SCRIM blur 8 (only used if thermal cools back into a
+ * shader tier — SCRIM itself paints Canvas, no GPU effect at all).
+ */
+data class GlassParams(val blurRadius: Float, val dispersion: Float, val bevel: Float)
+
+fun glassParamsFor(profile: com.unyxx.act.util.SocDetector.Profile): GlassParams =
+    when {
+        profile.frostedFallback -> GlassParams(8f, 0f, 0.3f)
+        !profile.highQuality -> GlassParams(12f, 0f, 0.35f)
+        else -> GlassParams(
+            18f,
+            profile.dispersion.coerceIn(0f, 0.20f),
+            (profile.bevelDp / 14f).coerceIn(0f, 1f)
+        )
+    }
+
+/**
+ * One-call SOC setup: blur + CA + bevel + tier from [profile].
+ * Honors [blurEnabled] (manager per-app toggle → SCRIM, keeps bounds).
+ */
+fun KlyntGlassView.configure(
+    profile: com.unyxx.act.util.SocDetector.Profile,
+    intensity: Float,
+    blurEnabled: Boolean
+) {
+    val params = glassParamsFor(profile)
+    // Blur first: the setter rebuilds only on change, so ordering it
+    // before `tier` avoids compiling the RuntimeShader twice on wrap.
+    blurRadius = params.blurRadius
+    this.intensity = intensity.coerceIn(0f, 1f)
+    dispersion = params.dispersion
+    bevel = params.bevel
+    tier = if (!blurEnabled) {
+        KlyntTier.SCRIM
+    } else {
+        selectGlassTier(profile.frostedFallback, false, false, profile.highQuality)
+    }
+}

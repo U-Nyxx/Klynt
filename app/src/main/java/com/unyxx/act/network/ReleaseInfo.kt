@@ -12,13 +12,31 @@ data class ReleaseInfo(
     val sizeBytes: Long
 ) {
     companion object {
-        /** Picks the single `klynt-*-ArJk.apk` asset, null when absent. */
+        /** Strict asset shape: `klynt-<version>-<CODE>.apk`, CODE rotates. */
+        private val ASSET_RE = Regex("""^klynt-(.+)-([A-Za-z0-9_-]+)\.apk$""")
+
+        /**
+         * Picks the signed `klynt-<version>-<CODE>.apk` asset.
+         *
+         * Strict on purpose (future-proof for a rotating codename): the name
+         * must match [ASSET_RE], `size` must be positive and the URL https.
+         * When several match, the one whose embedded version equals the
+         * release tag wins; otherwise the first strict match. Null when
+         * absent.
+         */
         fun from(release: GitHubRelease): ReleaseInfo? {
-            val asset = release.assets.firstOrNull { a ->
-                a.name.startsWith("klynt-") && a.name.endsWith("-ArJk.apk")
-            } ?: return null
+            val tag = release.tagName.trim().removePrefix("v")
+            val strict = release.assets.filter { a ->
+                ASSET_RE.matchEntire(a.name) != null &&
+                    a.size > 0 &&
+                    a.downloadUrl.startsWith("https://")
+            }
+            if (strict.isEmpty()) return null
+            val asset = strict.firstOrNull { a ->
+                ASSET_RE.matchEntire(a.name)?.groupValues?.get(1) == tag
+            } ?: strict.first()
             return ReleaseInfo(
-                version = release.tagName.trim().removePrefix("v"),
+                version = tag,
                 notes = release.body.orEmpty(),
                 apkUrl = asset.downloadUrl,
                 sizeBytes = asset.size

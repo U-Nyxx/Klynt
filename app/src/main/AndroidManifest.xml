@@ -18,6 +18,7 @@
         <package android:name="tw.nekomimi.nekogram" />
         <package android:name="org.nekogram" />
         <package android:name="nekox.messenger" />
+        <package android:name="nekox.messenger" />
         <package android:name="xyz.nextalone.nagram" />
         <package android:name="nu.gpu.nagram" />
         <package android:name="nu.gpu.nagramx" />

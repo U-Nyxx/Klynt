@@ -9,10 +9,13 @@ pluginManagement {
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
     repositories {
+        // mavenCentral 403 from this network: try Indonesian/APAC mirrors
+        // + Google for androidx. Order: mirrors -> Google -> JetBrains -> Xposed
+        maven("https://maven.aliyun.com/repository/public/")
+        maven("https://repo1.maven.org/maven2/")
         google()
-        mavenCentral()
+        maven("https://maven.pkg.jetbrains.space/kotlin/p/kotlin/maven")
         maven("https://api.xposed.info/")
-        // JitPack removed with QWEA0 (v1.0.8): zero third-party glass.
     }
 }
 

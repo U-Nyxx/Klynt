@@ -26,18 +26,19 @@ sealed interface UpdateState {
 /**
  * GitHub-release update source of truth.
  *
- * Check results are cached 24h in manager prefs to respect rate limits.
- * Downloads go through the system DownloadManager; installs via our
- * FileProvider (already mapped to Download/).
+ * Realtime ETag-conditional check on every call (foreground + manual):
+ * a 304 costs ~no quota, so there is no 24h cache gate. Last-known
+ * release stays in prefs as offline fallback. Downloads go through the
+ * system DownloadManager; installs via our FileProvider.
  */
 object UpdateRepository {
 
-    private const val CACHE_VALID_MS = 24L * 60L * 60L * 1000L
     private const val KEY_CHECK_MS = "update_last_check_ms"
     private const val KEY_TAG = "update_cached_tag"
     private const val KEY_NOTES = "update_cached_notes"
     private const val KEY_URL = "update_cached_url"
     private const val KEY_SIZE = "update_cached_size"
+    private const val KEY_ETAG = "update_etag"
     private const val APK_FILE = "klynt-update.apk"
 
     private fun prefs(context: Context) =
@@ -60,47 +61,70 @@ object UpdateRepository {
         }
     }
 
-    /** Returns cached-or-fresh update state. Throws nothing. */
+    /**
+     * Realtime check on every call (foreground + manual): conditional GET
+     * via ETag, so unchanged releases cost ~no quota. Throws nothing.
+     * [force] retries the network even when a fresh state was just
+     * computed; offline it still surfaces last-known state.
+     */
     suspend fun check(context: Context, force: Boolean): UpdateState {
         val p = prefs(context)
         val now = System.currentTimeMillis()
-        if (!force) {
-            val cachedTag = p.getString(KEY_TAG, null)
-            if (cachedTag != null && now - p.getLong(KEY_CHECK_MS, 0L) < CACHE_VALID_MS) {
-                val info = ReleaseInfo(
-                    version = cachedTag,
-                    notes = p.getString(KEY_NOTES, "").orEmpty(),
-                    apkUrl = p.getString(KEY_URL, "").orEmpty(),
-                    sizeBytes = p.getLong(KEY_SIZE, 0L)
-                )
-                return if (info.apkUrl.isBlank()) {
-                    UpdateState.UpToDate(localVersion(context))
-                } else if (info.isNewerThan(localVersion(context))) {
-                    UpdateState.Available(info)
-                } else {
-                    UpdateState.UpToDate(localVersion(context))
-                }
-            }
-        }
         return try {
-            val release = GitHubApi.fetchLatest()
-            val info = ReleaseInfo.from(release)
-                ?: return UpdateState.Failed("No APK in latest release")
-            p.edit()
-                .putLong(KEY_CHECK_MS, now)
-                .putString(KEY_TAG, info.version)
-                .putString(KEY_NOTES, info.notes)
-                .putString(KEY_URL, info.apkUrl)
-                .putLong(KEY_SIZE, info.sizeBytes)
-                .apply()
-            if (info.isNewerThan(localVersion(context))) {
+            val result = GitHubApi.fetchLatest(p.getString(KEY_ETAG, null))
+            val info = if (result.notModified) {
+                // 304 with no cache (prefs wiped, ETag survived): stamp and
+                // report local truth instead of a false "no update" state.
+                cachedInfo(p) ?: run {
+                    p.edit().putLong(KEY_CHECK_MS, now).apply()
+                    return UpdateState.UpToDate(localVersion(context))
+                }
+            } else {
+                val release = result.release
+                    ?: return UpdateState.Failed("Release has no build attached")
+                val fresh = ReleaseInfo.from(release)
+                    ?: return UpdateState.Failed("No signed KLYNT APK in latest release")
+                p.edit()
+                    .putString(KEY_TAG, fresh.version)
+                    .putString(KEY_NOTES, fresh.notes)
+                    .putString(KEY_URL, fresh.apkUrl)
+                    .putLong(KEY_SIZE, fresh.sizeBytes)
+                    .putString(KEY_ETAG, result.etag ?: "")
+                    .apply()
+                fresh
+            }
+            p.edit().putLong(KEY_CHECK_MS, now).apply()
+            if (info.apkUrl.isBlank()) {
+                UpdateState.UpToDate(localVersion(context))
+            } else if (info.isNewerThan(localVersion(context))) {
                 UpdateState.Available(info)
             } else {
-                UpdateState.UpToDate(info.version)
+                UpdateState.UpToDate(localVersion(context))
             }
         } catch (t: Throwable) {
-            UpdateState.Failed(t.message ?: "Network error")
+            // Offline: fall back to last known state instead of erroring,
+            // so the section degrades to stale-info, not a dead end.
+            // Manual retry included: a known-newer build is worth showing
+            // even when the user explicitly asked.
+            val stale = cachedInfo(p)
+            if (stale != null && stale.apkUrl.isNotBlank() &&
+                stale.isNewerThan(localVersion(context))
+            ) {
+                UpdateState.Available(stale)
+            } else {
+                UpdateState.Failed(t.message ?: "Network error")
+            }
         }
+    }
+
+    private fun cachedInfo(p: android.content.SharedPreferences): ReleaseInfo? {
+        val tag = p.getString(KEY_TAG, null) ?: return null
+        return ReleaseInfo(
+            version = tag,
+            notes = p.getString(KEY_NOTES, "").orEmpty(),
+            apkUrl = p.getString(KEY_URL, "").orEmpty(),
+            sizeBytes = p.getLong(KEY_SIZE, 0L)
+        )
     }
 
     /** Enqueues the APK download, returns the DownloadManager id. */

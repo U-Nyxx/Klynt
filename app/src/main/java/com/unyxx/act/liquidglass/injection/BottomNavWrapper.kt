@@ -10,8 +10,7 @@ import android.view.ViewTreeObserver
 import android.widget.FrameLayout
 import com.unyxx.act.R
 import com.unyxx.act.liquidglass.engine.KlyntGlassView
-import com.unyxx.act.liquidglass.engine.KlyntTier
-import com.unyxx.act.liquidglass.engine.selectGlassTier
+import com.unyxx.act.liquidglass.engine.configure
 
 /**
  * Wraps a target app's bottom navigation view with a liquid-glass overlay.
@@ -103,12 +102,7 @@ class BottomNavWrapper @JvmOverloads constructor(
         try {
             val profile = com.unyxx.act.util.SocDetector.resolve(context)
             val g = glass ?: return
-            g.intensity = intensity.coerceIn(0f, 1f)
-            g.tier = if (!blur) {
-                KlyntTier.SCRIM
-            } else {
-                selectGlassTier(profile.frostedFallback, false, false)
-            }
+            g.configure(profile, intensity, blur)
             // Re-resolve bounds against the (possibly resized) reference.
             original?.let { ref ->
                 if (ref.width > 0 && ref.height > 0) {
@@ -150,14 +144,11 @@ class BottomNavWrapper @JvmOverloads constructor(
         glass = KlyntGlassView(context).apply {
             isClickable = false
             isFocusable = false
-            // Qualified: the wrap() param shadows the member for assignment.
-            this.intensity = intensity.coerceIn(0f, 1f)
-            val profile = com.unyxx.act.util.SocDetector.resolve(context)
-            tier = if (!blur) {
-                KlyntTier.SCRIM
-            } else {
-                selectGlassTier(profile.frostedFallback, false, false)
-            }
+            configure(
+                com.unyxx.act.util.SocDetector.resolve(context),
+                intensity,
+                blur
+            )
             // Glass spans our full slot; the shader masks the pill shape.
             post {
                 try {

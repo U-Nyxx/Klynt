@@ -49,4 +49,10 @@
     <string name="update_hint_network">Tidak ada koneksi. Cek internet, lalu coba lagi.</string>
     <string name="update_hint_rate">GitHub membatasi. Tunggu beberapa menit, lalu coba lagi.</string>
     <string name="update_rotation_warn">Dari v1.0.3 atau lebih lama? Uninstall aplikasi lama dulu (kunci baru) atau instal akan gagal diam-diam.</string>
+    <string name="hero_active">Aktif</string>
+    <string name="hero_inactive">Belum aktif</string>
+    <string name="hero_checking">Memeriksa…</string>
+    <string name="hero_ready">Scope aktif — glass siap</string>
+    <string name="hero_enable_scope">Aktifkan scope di manager LSPosed</string>
+    <string name="hero_status_desc">Status modul</string>
 </resources>

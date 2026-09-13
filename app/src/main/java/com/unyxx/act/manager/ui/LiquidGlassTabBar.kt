@@ -26,30 +26,40 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.unyxx.act.liquidglass.engine.configure
+import com.unyxx.act.util.SocDetector
 import kotlin.math.roundToInt
 
 /**
  * Floating capsule bottom bar (LSPosed-manager look, iOS feel).
  *
  * Layers bottom-to-top: tonal scrim → 1dp border → top specular
- * highlight → one shared pill tracking the page fractionally (spring
- * on tap, 1:1 while dragging) → icon + label tabs.
+ * highlight → one shared **glass pill** tracking the page fractionally
+ * (spring on tap, 1:1 while dragging) → icon + label tabs.
  * Active tab uses filled glyphs, inactive outlined.
- * Deliberately no native glass here: the bar must never crash the
- * manager, glass stays exclusive to the hook overlay.
+ *
+ * RAM rule (learned from LSPosed's own manager): the bar background is
+ * a cheap translucent scrim — the live [KlyntGlassView] lens lives ONLY
+ * inside the ~68×56dp selected pill (frame 4 of the reference capture).
+ * Shading 15x fewer pixels than a full-bar glass keeps this smooth on
+ * Mali mid-range and costs nothing extra in APK size (same engine as
+ * the hook overlay).
  *
  * @param selectedPage fractional page position (page + offset) so the
  * pill follows the finger during pager swipes.
@@ -62,7 +72,9 @@ fun LiquidGlassTabBar(
     modifier: Modifier = Modifier
 ) {
     val haptic = LocalHapticFeedback.current
+    val context = LocalContext.current
     val capsule = RoundedCornerShape(50)
+    val pillShape = RoundedCornerShape(50)
     val selectedIndex = selectedPage.roundToInt().coerceIn(0, tabs.size - 1)
     // Dark: lavender-on-glass like the reference. Light: primary-on-glass
     // so the capsule stays readable instead of going muddy.
@@ -82,15 +94,24 @@ fun LiquidGlassTabBar(
     } else {
         Color.Black.copy(alpha = 0.12f)
     }
-    val pillTint = if (dark) {
-        Color.White.copy(alpha = 0.14f)
+    val scrimTint = if (dark) {
+        Color(0xFF1C1B20).copy(alpha = 0.82f)
     } else {
-        Color.Black.copy(alpha = 0.08f)
+        Color.White.copy(alpha = 0.82f)
     }
     val highlightTop = if (dark) {
         Color.White.copy(alpha = 0.10f)
     } else {
         Color.Black.copy(alpha = 0.05f)
+    }
+
+    // Profile once per composition: the pill lens follows the same
+    // SOC tiers as the hook overlay (FULL/LITE/SCRIM).
+    val profile = remember { SocDetector.resolve(context) }
+    var glassView by remember { mutableStateOf<com.unyxx.act.liquidglass.engine.KlyntGlassView?>(null) }
+    // Lens pop on every tab switch (Apple rule: materialize, not fade).
+    LaunchedEffect(selectedIndex) {
+        glassView?.animateIntensityTo(1f)
     }
 
     Box(
@@ -99,20 +120,9 @@ fun LiquidGlassTabBar(
             .padding(horizontal = 16.dp)
             .padding(bottom = 12.dp)
             .height(76.dp)
-            .shadow(12.dp, capsule)
             .clip(capsule)
+            .background(scrimTint)
     ) {
-        // Live proprietary glass (KlyntGlass engine, same as targets).
-        androidx.compose.ui.viewinterop.AndroidView(
-            factory = { ctx ->
-                com.unyxx.act.liquidglass.engine.KlyntGlassView(ctx).apply {
-                    addOnLayoutChangeListener { v, l, t, r, b, _, _, _, _ ->
-                        setBarRect(0, 0, r - l, b - t)
-                    }
-                }
-            },
-            modifier = Modifier.matchParentSize()
-        )
         // 1dp light border.
         Box(
             modifier = Modifier
@@ -131,13 +141,16 @@ fun LiquidGlassTabBar(
                     )
                 )
         )
-        // One shared pill tracking the page fractionally.
+        // One shared GLASS pill tracking the page fractionally.
         BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
             val indicatorWidth = 68.dp
             val targetX = maxWidth * (selectedPage + 0.5f) / tabs.size - indicatorWidth / 2
             val pillX by animateDpAsState(
                 targetValue = targetX,
-                animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+                animationSpec = spring(
+                    stiffness = Spring.StiffnessLow,
+                    dampingRatio = Spring.DampingRatioMediumBouncy
+                ),
                 label = "tab_pill"
             )
             Box(
@@ -146,8 +159,22 @@ fun LiquidGlassTabBar(
                     .width(indicatorWidth)
                     .height(56.dp)
                     .align(Alignment.CenterStart)
-                    .background(pillTint, RoundedCornerShape(50))
-            )
+                    .clip(pillShape)
+            ) {
+                androidx.compose.ui.viewinterop.AndroidView(
+                    factory = { ctx ->
+                        com.unyxx.act.liquidglass.engine.KlyntGlassView(ctx).apply {
+                            configure(profile, 1f, true)
+                            addOnLayoutChangeListener { v, l, t, r, b, _, _, _, _ ->
+                                setBarRect(0, 0, r - l, b - t)
+                            }
+                            glassView = this
+                            post { animateIntensityTo(1f) }
+                        }
+                    },
+                    modifier = Modifier.matchParentSize()
+                )
+            }
         }
         Row(
             modifier = Modifier.fillMaxSize(),

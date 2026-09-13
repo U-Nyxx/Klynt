@@ -36,21 +36,38 @@ object GitHubApi {
 
     private val gson = Gson()
 
-    /** @throws Exception on network/parse failure (caller maps to UI state). */
-    suspend fun fetchLatest(): GitHubRelease = withContext(Dispatchers.IO) {
-        val request = Request.Builder()
+    /** Result of a conditional fetch (ETag realtime, quota-friendly). */
+    data class FetchResult(
+        val release: GitHubRelease?,
+        val etag: String?,
+        val notModified: Boolean
+    )
+
+    /**
+     * Conditional GET: sends `If-None-Match` when [etag] is known. A 304
+     * costs (almost) no rate-limit quota, so the manager can check on
+     * every foreground instead of a 24h cache.
+     *
+     * @throws Exception on network/parse failure (caller maps to UI state).
+     */
+    suspend fun fetchLatest(etag: String? = null): FetchResult = withContext(Dispatchers.IO) {
+        val builder = Request.Builder()
             .url(LATEST_URL)
             .header("Accept", "application/vnd.github+json")
             .header("User-Agent", "KLYNT-Android")
-            .build()
-        client.newCall(request).execute().use { response ->
+        if (!etag.isNullOrBlank()) builder.header("If-None-Match", etag)
+        client.newCall(builder.build()).execute().use { response ->
+            if (response.code == 304) {
+                return@withContext FetchResult(null, etag, notModified = true)
+            }
             if (!response.isSuccessful) {
                 throw IllegalStateException("GitHub HTTP ${response.code}")
             }
             val body = response.body?.string().orEmpty()
             if (body.isBlank()) throw IllegalStateException("Empty release payload")
-            gson.fromJson(body, GitHubRelease::class.java)
+            val release = gson.fromJson(body, GitHubRelease::class.java)
                 ?: throw IllegalStateException("Unparseable release payload")
+            FetchResult(release, response.header("ETag"), notModified = false)
         }
     }
 }

@@ -18,6 +18,10 @@ class HomeViewModel : ViewModel() {
     private val _isModuleActive = MutableStateFlow(false)
     val isModuleActive: StateFlow<Boolean> = _isModuleActive.asStateFlow()
 
+    /** True once the first binder/scope read finished (kills red flash). */
+    private val _loaded = MutableStateFlow(false)
+    val loaded: StateFlow<Boolean> = _loaded.asStateFlow()
+
     private val _checks = MutableStateFlow<List<SetupCheck>>(emptyList())
     val checks: StateFlow<List<SetupCheck>> = _checks.asStateFlow()
 
@@ -50,6 +54,7 @@ class HomeViewModel : ViewModel() {
             }
             _stats.value = stats
             _isModuleActive.value = active
+            _loaded.value = true
             _checks.value = listOf(
                 SetupCheck(
                     key = CheckKey.BINDER,

@@ -63,9 +63,15 @@ jobs:
 
       - name: Rename APK
         run: |
+          set -euo pipefail
           cd app/build/outputs/apk/release/
           VERSION=${GITHUB_REF_NAME#v}
-          mv app-release.apk klynt-${VERSION}-ArJk.apk
+          # From app/build/outputs/apk/release/ the repo root is 5 levels up
+          # (release/ → apk/ → outputs/ → build/ → app/ → root).
+          CODE=$(tr -cd 'A-Za-z0-9_-' < ../../../../../release-codename.txt)
+          if [ -z "$CODE" ]; then echo "FAIL: empty codename"; exit 1; fi
+          mv app-release.apk klynt-${VERSION}-${CODE}.apk
+          ls -lh klynt-*.apk
 
       # Definitive rotation/signature proof: prints the signer cert
       # fingerprints into the workflow log for comparison with the
@@ -100,6 +106,6 @@ jobs:
 
             ### Installation
             1. If KLYNT is already installed: disable it in LSPosed, reboot, then uninstall the old APK first
-            2. Download `klynt-${{ github.ref_name }}-ArJk.apk`
+            2. Download `klynt-${{ github.ref_name }}-*.apk` (codename rotates every release)
             3. Install & enable scope in LSPosed manager
             4. Force-stop the target app and reopen it

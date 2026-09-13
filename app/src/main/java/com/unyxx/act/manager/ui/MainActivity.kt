@@ -64,9 +64,11 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         // User may return from LSPosed after ticking scope: re-read
         // binder state, scope grants and stats instead of showing stale red.
+        // Update check rides along (ETag-conditional: cheap when unchanged).
         homeViewModel.refresh()
         appsViewModel.refresh()
         settingsViewModel.refresh()
+        settingsViewModel.checkForUpdates(applicationContext, force = false)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -75,10 +77,8 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             KlyntTheme {
-                // Silent daily update check (24h cache inside).
-                androidx.compose.runtime.LaunchedEffect(Unit) {
-                    settingsViewModel.checkForUpdates(applicationContext, force = false)
-                }
+                // Update check lives in onResume (ETag-conditional, cheap):
+                // it covers first composition too, so no second trigger here.
                 MainScreen(
                     appsViewModel = appsViewModel,
                     homeViewModel = homeViewModel,
