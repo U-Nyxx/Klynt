@@ -23,8 +23,8 @@ android {
         // Older rooted phones stay on v1.0.7 and below.
         minSdk = 33
         targetSdk = 35
-        versionCode = 13
-        versionName = "1.0.11"
+        versionCode = 14
+        versionName = "1.0.12"
         // Release codename (rotates every release): baked into BuildConfig,
         // the APK filename, the manager UI and hook logs. Sanitized to
         // [A-Za-z0-9_-] so it can never break BuildConfig.java or the
