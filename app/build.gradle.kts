@@ -105,11 +105,9 @@ dependencies {
     compileOnly("io.github.libxposed:api:101.0.0")
     implementation("io.github.libxposed:service:101.0.0")
 
-    // Velra — Liquid Glass Engine (extracted, io.github.u-nyxx:velra, now standalone)
-    // Local: mavenLocal 0.1.0, Remote: JitPack com.github.U-Nyxx:velra
-    implementation("io.github.u-nyxx:velra:0.1.0")
-
-    // KlyntGlass engine is now Velra (liquidglass/engine re-exports) — no QWEA0/MDC
+    // KlyntGlass engine is proprietary (liquidglass/engine) — Velra is sibling repo
+    // U-Nyxx/velra (io.github.u-nyxx:velra) for standalone use. Klynt keeps
+    // embedded engine until Velra 1.0 via JitPack/Maven Central — no CI dep yet.
 
     // Compose + Material 3 - Latest stable BOM
     implementation(platform("androidx.compose:compose-bom:2024.08.00"))
