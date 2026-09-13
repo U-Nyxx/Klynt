@@ -1,6 +1,9 @@
-# Linguist: make GitHub bar reflect real stack (Kotlin + AGSL embedded + XML)
+# Linguist: make GitHub bar reflect real stack (Kotlin + C++ + AGSL embedded + XML)
 *.kt linguist-language=Kotlin
 *.kts linguist-language=Kotlin
+*.cpp linguist-language=C++
+*.h linguist-language=C++
+*.c linguist-language=C
 *.agsl linguist-language=GLSL
 *.xml linguist-language=XML
 *.gradle linguist-language=Gradle

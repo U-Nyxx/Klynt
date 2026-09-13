@@ -109,7 +109,7 @@ fun LiquidGlassTabBar(
     // SOC tiers as the hook overlay (FULL/LITE/SCRIM).
     val profile = remember { SocDetector.resolve(context) }
     var glassView by remember { mutableStateOf<com.unyxx.act.liquidglass.engine.KlyntGlassView?>(null) }
-    // Lens pop on every tab switch (Apple rule: materialize, not fade).
+    // Lens pop on every tab switch (platform rule: materialize, not fade).
     LaunchedEffect(selectedIndex) {
         glassView?.animateIntensityTo(1f)
     }

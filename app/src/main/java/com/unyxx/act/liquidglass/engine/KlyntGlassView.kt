@@ -36,7 +36,7 @@ import java.util.concurrent.Executor
  * SCRIM at MODERATE+ and restores the previous tier when the skin
  * cools. Listener is bound to the window (attach/detach), never leaked.
  *
- * Motion (Apple rule): the element materializes by springing lens
+ * Motion (platform rule): the element materializes by springing lens
  * bending 0→target via [GlassMotion], never by opacity crossfade.
  */
 class KlyntGlassView @JvmOverloads constructor(
@@ -87,7 +87,7 @@ class KlyntGlassView @JvmOverloads constructor(
             rebuildEffect()
         }
 
-    /** Apple's Clear variant: max transparency, full refraction. */
+    /** Crystal Clear variant: max transparency, full refraction. */
     var clearMode: Boolean = false
         set(value) {
             field = value
@@ -144,7 +144,7 @@ class KlyntGlassView @JvmOverloads constructor(
     fun clearPress() = setPress(-1f, -1f, 0f)
 
     /**
-     * Materialize transition (Apple rule): springs lens bending
+     * Materialize transition (platform rule): springs lens bending
      * 0→target with one soft overshoot. Call right after attach.
      */
     fun animateIntensityTo(target: Float) {

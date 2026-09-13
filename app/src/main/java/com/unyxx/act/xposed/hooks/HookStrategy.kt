@@ -6,7 +6,7 @@ import android.view.ViewGroup
 /**
  * Future-proof hook chain for bottom-bar discovery.
  *
- * Apple never hard-codes a single class — everything via traits.
+ * Platform never hard-codes a single class — everything via traits.
  * KLYNT used single-pass `NAV_CLASS_HINTS contains` (brittle on obfuscation).
  * This chain tries strategies in order, each pure and testable:
  *  - ClassName (fast, exact)

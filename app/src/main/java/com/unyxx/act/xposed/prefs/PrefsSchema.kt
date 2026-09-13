@@ -45,7 +45,7 @@ object PrefsSchema {
         // Default ON: matches the long-standing hook behavior (blur was
         // always applied); the toggle now truthfully reflects reality.
         BLUR_ENABLED(true),
-        // Apple's Clear variant: max transparency + full refraction +
+        // Platform's Clear variant: max transparency + full refraction +
         // dimming for legibility. Default OFF (Regular).
         GLASS_CLEAR(false)
     }

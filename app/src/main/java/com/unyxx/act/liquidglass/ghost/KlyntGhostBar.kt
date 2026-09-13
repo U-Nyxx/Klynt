@@ -160,7 +160,7 @@ class KlyntGhostBar @JvmOverloads constructor(
 
     /**
      * Clear-variant dimming: a soft dark strip behind the label row so
-     * glyphs stay legible over bright content (Apple's dimming-layer
+     * glyphs stay legible over bright content (Platform's dimming-layer
      * rule for Clear). Off in Regular.
      */
     var clearDimming: Boolean = false
@@ -181,7 +181,7 @@ class KlyntGhostBar @JvmOverloads constructor(
      * Chrome-only mode: skips pill body/shadow/highlight/border and draws
      * just glyphs, labels, selection and press rings. Used over
      * [com.unyxx.act.liquidglass.engine.KlyntGlassView], which owns the
-     * glass background — Apple's layer rule (glass ≠ overlay).
+     * glass background — Platform's layer rule (glass ≠ overlay).
      */
     var chromeOnly: Boolean = false
         set(value) {

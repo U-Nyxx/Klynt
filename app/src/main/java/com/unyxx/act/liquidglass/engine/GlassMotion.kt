@@ -3,7 +3,7 @@ package com.unyxx.act.liquidglass.engine
 /**
  * iOS-spring equivalent for the View-system glass (hook overlay).
  *
- * Apple drives lens pops with `CASpringAnimation`; the Android twin
+ * Reference platform drives lens pops with spring animation; the Android twin
  * inside a hooked process is a hand-rolled damped spring over
  * `Choreographer` — zero dependencies (no dynamicanimation AAR, APK
  * stays lean) and pure functions so the integrator is unit-testable

@@ -8,11 +8,17 @@ import android.os.PowerManager
 /**
  * Runtime SoC detection for adaptive Liquid Glass quality.
  *
- * Apple can assume uniform GPU behavior; Android cannot — Adreno, Mali
+ * Platform can assume uniform GPU behavior; Android cannot — Adreno, Mali
  * and Xclipse throttle and tile very differently. Every value below is
  * in dp and converted to px at the call site.
  */
 object SocDetector {
+
+    init {
+        try { System.loadLibrary("klynt") } catch (_: Throwable) {}
+    }
+
+    @JvmStatic external fun nativeHardware(): String
 
     data class Profile(
         /** False → frosted fallback: no refraction/dispersion, blur only. */

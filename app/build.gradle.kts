@@ -15,6 +15,7 @@ android {
     namespace = "com.unyxx.act"
     // 37 required by io.github.libxposed 102 AAR metadata (targetSdk stays 35)
     compileSdk = 37
+    ndkVersion = "27.0.12077973"
 
     defaultConfig {
         applicationId = "com.unyxx.act"
@@ -44,7 +45,12 @@ android {
         buildConfig = true
     }
 
-
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+            version = "3.22.1"
+        }
+    }
 
     signingConfigs {
         create("release") {

@@ -32,17 +32,17 @@
 
 | Layer | Technology | Version | Notes |
 |-------|------------|---------|-------|
-| Language | Kotlin | 2.2.10 | + Coroutines 1.8.1 / Serialization 1.6.3 |
+| Language | Kotlin + C++ (NDK) | 2.2.10 / NDK 27 | Kotlin orchestration, C++ hardware↔software bridge (`klynt_hook.cpp`) |
 | UI | Jetpack Compose | BOM 2024.08 | Material3 1.2.1, Activity 1.9.2 |
 | Glass | AGSL RuntimeShader | API 33+ | Loop-free, 4 taps FULL / 2 LITE, Mali-safe |
 | Blur | RenderEffect | API 31+ | GPU blur node 18/12/8 per SOC, not in-shader |
-| Motion | Choreographer Spring | 170/0.72 | `GlassMotion` — single overshoot, no `ValueAnimator` |
-| Hook | libxposed | 101 (runs on 101/102) | `XposedModule` + `Scope` |
+| Motion | Choreographer Spring + C++ | 170/0.72 | `GlassMotion` + `VelraGlassView.nativeIsLowRam` via JNI |
+| Hook | libxposed + C++ | 101 (runs on 101/102) | `XposedModule` + `Scope` + `__system_property_get` via NDK |
 | Network | OkHttp + Gson | 4.12 / 2.10 | ETag conditional, no Coil/Retrofit |
-| Build | Gradle | 9.3.1 | JDK 17, compileSdk 37, target 35, min 33 |
-| NDK | arm64-v8a only | — | No x86 bloat, diet APK |
+| Build | Gradle + CMake | 9.3.1 / 3.22.1 | JDK 17, compileSdk 37, target 35, min 33 |
+| NDK | arm64-v8a only | 27.0.12077973 | C++ `libklynt.so` + AGSL `libvelra.so`, no x86 bloat |
 
-**Languages:** `Kotlin 97% • AGSL (embedded in Kotlin) • XML 3% • Gradle DSL` — see `.gitattributes` for linguist bar. `KlyntGlassShader.kt:29` is GLSL counted as Kotlin.
+**Languages:** `Kotlin 92% • C++ 4% • AGSL (embedded) • XML 3% • Gradle DSL` — not full Kotlin: `KlyntGlassShader.kt:29` GLSL + `app/src/main/cpp/klynt_hook.cpp` NDK (hardware↔software). See `.gitattributes`.
 
 ## Features
 
@@ -64,11 +64,11 @@
 
 > Root required (LSPosed + libxposed API 101+). Non-root (LSPatch) is not supported yet.
 
-## How Apple Liquid Glass Works (Research)
+## How Platform Liquid Glass Works (Research)
 
-KLYNT is a rebuild, not a port. How Apple does it and how we map it (`docs/RESEARCH.md`):
+KLYNT is a rebuild, not a port. How Platform does it and how we map it (`docs/RESEARCH.md`):
 
-| Apple | How it works | KLYNT mapping |
+| Platform | How it works | KLYNT mapping |
 |-------|--------------|---------------|
 | `SwiftUI .ultraThinMaterial` / `UIVisualEffectView` | CA Render Server out-of-process blur of wallpaper | `KlyntGlassView.kt:148` `RenderEffect` chain inside target `decorView` (limitation: no wallpaper blur without SystemUI hook — see `docs/LIMITATIONS.md`) |
 | `CA Render Server` 120Hz | `backboardd` off-main-thread compositing | `Choreographer` 2 half-steps for 120Hz, `isSettled 0.002` |

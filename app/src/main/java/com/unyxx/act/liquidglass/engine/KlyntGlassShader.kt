@@ -90,7 +90,7 @@ half4 main(float2 fragCoord) {
 
     float lum = dot(c.rgb, vec3(0.299, 0.587, 0.114));
     c.rgb = mix(vec3(lum), c.rgb, 1.35);
-    // Apple's tint rule: ~30% light, ~50% dark. Clear variant thins
+    // Platform tint rule: ~30% light, ~50% dark. Crystal variant thins
     // the tint so content richness comes through.
     float tintAmt = mix(0.30, 0.50, dark) * (1.0 - clearMode * 0.55);
     vec3 tintCol = mix(vec3(1.0), vec3(0.75, 0.83, 1.0), dark * 0.5);

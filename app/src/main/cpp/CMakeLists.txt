@@ -1,0 +1,5 @@
+cmake_minimum_required(VERSION 3.22.1)
+project("klynt")
+add_library(klynt SHARED klynt_hook.cpp)
+find_library(log-lib log)
+target_link_libraries(klynt ${log-lib} android)

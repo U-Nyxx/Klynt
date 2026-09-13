@@ -132,7 +132,7 @@ object GhostDriver {
             isFocusable = false
         }
         // Glass background (proprietary KlyntGlass engine) + chrome bar.
-        // Apple's layer rule: glass layer and overlay layer stay separate
+        // Platform's layer rule: glass layer and overlay layer stay separate
         // views so glyphs/labels are never refracted, only the backdrop.
         val glass = KlyntGlassView(decor.context)
         try {
