@@ -149,7 +149,7 @@ dependencies {
 
     // Testing (launcher must be explicit: the jupiter aggregator
     // does not pull it, and without it the executor fails to start)
-    testImplementation("org.junit.jupiter:junit-jupiter:5.10.2")
+    testImplementation("org.junit.jupiter:junit-jupiter:6.1.3")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.10.2")
     testImplementation("io.mockk:mockk:1.13.13")
     testImplementation("app.cash.turbine:turbine:1.0.0")
