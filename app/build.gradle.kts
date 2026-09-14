@@ -6,7 +6,7 @@ val localProps = Properties().apply {
 }
 
 plugins {
-    alias(libs.plugins.android.application)
+    id("com.android.application")
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
 }
@@ -98,11 +98,12 @@ dependencies {
     compileOnly(libs.libxposed.api)
     implementation(libs.libxposed.service)
 
-    implementation(libs.compose.bom)
+    val composeBom = libs.compose.bom
+    implementation(platform(composeBom))
     implementation(libs.material3)
-api(libs.material.icons.core)
-api(libs.material.icons.extended)
-api(libs.material)
+    api(libs.material.icons.core)
+    api(libs.material.icons.extended)
+    api(libs.material)
     implementation(libs.activity.compose)
     implementation(libs.foundation)
     implementation(libs.core.ktx)

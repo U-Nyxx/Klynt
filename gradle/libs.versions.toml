@@ -26,12 +26,12 @@ libxposed-service = { module = "io.github.libxposed:service", version.ref = "lib
 
 # Compose
 compose-bom = { module = "androidx.compose:compose-bom", version.ref = "composeBom" }
-material3 = "androidx.compose.material3:material3"
+material3 = { module = "androidx.compose.material3:material3" }
 material = { module = "androidx.compose.material:material" }
 material-icons-core = { module = "androidx.compose.material:material-icons-core" }
 material-icons-extended = { module = "androidx.compose.material:material-icons-extended" }
 activity-compose = { module = "androidx.activity:activity-compose", version.ref = "activity" }
-foundation = "androidx.compose.foundation:foundation"
+foundation = { module = "androidx.compose.foundation:foundation" }
 core-ktx = { module = "androidx.core:core-ktx", version.ref = "core" }
 lifecycle-runtime-ktx = { module = "androidx.lifecycle:lifecycle-runtime-ktx", version.ref = "lifecycle" }
 lifecycle-viewmodel-ktx = { module = "androidx.lifecycle:lifecycle-viewmodel-ktx", version.ref = "lifecycle" }
