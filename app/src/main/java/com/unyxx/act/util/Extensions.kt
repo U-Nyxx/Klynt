@@ -68,11 +68,11 @@ fun Context.getSharedPrefs(prefsName: String = "klynt_prefs") =
     getSharedPreferences(prefsName, Context.MODE_PRIVATE)
 
 fun Context.getWorldReadablePrefs(prefsName: String = "klynt_prefs") =
-    getSharedPreferences(prefsName, Context.MODE_WORLD_READABLE)
+    getSharedPreferences(prefsName, Context.MODE_PRIVATE)
 
 fun Context.dpToPx(dp: Float): Float = dp * resources.displayMetrics.density
 
-fun Context.spToPx(sp: Float): Float = sp * resources.displayMetrics.scaledDensity
+fun Context.spToPx(sp: Float): Float = sp * resources.displayMetrics.density * resources.configuration.fontScale
 
 // View Extensions
 fun View.gone() { visibility = View.GONE }
@@ -114,7 +114,10 @@ fun <T : View> View.findChildrenByClass(clazz: Class<T>): List<T> {
     if (this is ViewGroup) {
         for (i in 0 until childCount) {
             val child = getChildAt(i)
-            if (clazz.isInstance(child)) results.add(clazz.cast(child))
+            if (clazz.isInstance(child)) {
+                @Suppress("UNCHECKED_CAST")
+                results.add(clazz.cast(child) as T)
+            }
             if (child is ViewGroup) {
                 results.addAll(child.findChildrenByClass(clazz))
             }

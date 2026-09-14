@@ -67,6 +67,7 @@ fun LogsScreen(viewModel: LogsViewModel) {
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
+                @Suppress("DEPRECATION")
                 Icon(
                     imageVector = Icons.Filled.Article,
                     contentDescription = null,

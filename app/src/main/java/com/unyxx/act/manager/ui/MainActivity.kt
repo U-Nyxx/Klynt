@@ -119,6 +119,7 @@ fun MainScreen(
             stringResource(R.string.tab_settings), "settings",
             Icons.Filled.Settings, Icons.Outlined.Settings
         ),
+        @Suppress("DEPRECATION")
         TabItem(
             stringResource(R.string.tab_logs), "logs",
             Icons.Filled.Article, Icons.Outlined.Article
