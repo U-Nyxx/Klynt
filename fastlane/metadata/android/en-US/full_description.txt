@@ -1,0 +1,25 @@
+Full name: KLYNT
+Short description: Liquid Glass floating bottom bar for Telegram and Twitter/X
+Full description: |
+  KLYNT is an LSPosed module that replaces the bottom navigation bar in Telegram and Twitter/X with a floating glass pill.
+  
+  ## Features
+  - iOS-26-style liquid glass effect with refraction, chromatic aberration, and specular highlights
+  - Per-SoC adaptive quality (FULL/LITE/SCRIM)
+  - Spring physics via Choreographer (170/0.72)
+  - C++ NDK bridge for thermal/SOC detection
+  - 26 Telegram variants + Twitter/X support
+  - AGSL RuntimeShader, no bitmap capture
+  
+  ## Requirements
+  - Android 13+ (API 33)
+  - Root + LSPosed with libxposed API 101+
+  - arm64 only
+  
+  ## Installation
+  1. Download from Releases
+  2. Install → LSPosed → Modules → enable KLYNT
+  3. Tick target apps → Force-stop → Open
+  
+  ## Changelog
+  See CHANGELOG.md
