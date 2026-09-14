@@ -1,10 +1,13 @@
-# Screenshots — placeholder
+# Screenshots
 
-Add before/after shots here (360×800):
+KLYNT Liquid Glass pill on Android.
 
-- `demo-pill.png` — KLYNT glass pill on Telegram (Ghost vs Glass)
-- `demo-manager.png` — Manager pill 68×56 glass (LSPosed 1:1)
-- `soc-full-lite-scrim.png` — FULL (SD 8/Tensor) vs LITE (SD 6/Dimensity 8k) vs SCRIM (Dimensity 700)
-- `motion-spring.gif` — materialize 0→1 + press bulge + droplet stretch
+| Preview | Description |
+|---|---|
+| `hero.png` | KLYNT Liquid Glass floating pill (1280×640) |
+| `demo-hero-large.png` | App overview: title, SOC info, engine (1280×720) |
+| `demo-pill.png` | Pill close-up: 5-tab glass inside `#1C1B20 @0.82` scrim (720×800) |
+| `demo-manager.png` | Manager UI: glass pill active, status cards, bottom nav (720×1280) |
+| `demo-settings.png` | Settings: intensity, blur, dispersion, bevel, thermal (720×1280) |
 
-Until real device captures are added, README shows single `demo-pill.png` placeholder.
+All screenshots generated with PIL — no real device needed. Replace with `scrcpy` captures when device is available.

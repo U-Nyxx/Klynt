@@ -6,36 +6,26 @@ val localProps = Properties().apply {
 }
 
 plugins {
-    id("com.android.application")
-    id("org.jetbrains.kotlin.plugin.compose") version "2.2.10"
-    id("org.jetbrains.kotlin.plugin.serialization") version "2.2.10"
+    alias(libs.plugins.android.application)
+    alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.kotlin.serialization)
 }
 
 android {
     namespace = "com.unyxx.act"
-    // 37 required by io.github.libxposed 102 AAR metadata (targetSdk stays 35)
     compileSdk = 37
-    ndkVersion = "27.0.12077973"
+    ndkVersion = libs.versions.ndk.get()
 
     defaultConfig {
         applicationId = "com.unyxx.act"
-        // 33: KlyntGlass engine is AGSL (RuntimeShader needs Tiramisu+).
-        // Older rooted phones stay on v1.0.7 and below.
         minSdk = 33
         targetSdk = 35
         versionCode = 14
         versionName = "1.0.12"
-        // Release codename (rotates every release): baked into BuildConfig,
-        // the APK filename, the manager UI and hook logs. Sanitized to
-        // [A-Za-z0-9_-] so it can never break BuildConfig.java or the
-        // workflow glob (must match release.yml's tr filter).
         val codename = rootProject.file("release-codename.txt")
             .takeIf { it.exists() }?.readText()?.filter { it.isLetterOrDigit() || it == '-' || it == '_' }?.takeIf { it.isNotEmpty() } ?: "Dev"
         buildConfigField("String", "BUILD_CODENAME", "\"$codename\"")
-        // Strip locales bundled by AARs (we ship en + in only).
         resourceConfigurations += listOf("en", "in")
-        // Real devices on minSdk 30 are arm64; shipping x86/32-bit .so
-        // only bloats the APK (no emulator tests run in CI).
         ndk {
             abiFilters += "arm64-v8a"
         }
@@ -48,7 +38,7 @@ android {
     externalNativeBuild {
         cmake {
             path = file("src/main/cpp/CMakeLists.txt")
-            version = "3.22.1"
+            version = libs.versions.cmake.get()
         }
     }
 
@@ -96,64 +86,40 @@ android {
     }
 
     composeOptions {
-        kotlinCompilerExtensionVersion = "2.2.10"
+        kotlinCompilerExtensionVersion = libs.versions.kotlin.get()
     }
 }
 
-// JUnit5 tests must run on the JUnit Platform (else Gradle silently
-// discovers zero tests and the suite is theater).
 tasks.withType<Test> {
     useJUnitPlatform()
 }
 
 dependencies {
-    // Xposed API + Service (libxposed 101; runs on 101+ frameworks).
-    compileOnly("io.github.libxposed:api:101.0.0")
-    implementation("io.github.libxposed:service:101.0.0")
+    compileOnly(libs.libxposed.api)
+    implementation(libs.libxposed.service)
 
-    // KlyntGlass engine is proprietary (liquidglass/engine) — Velra is sibling repo
-    // U-Nyxx/velra (io.github.u-nyxx:velra) for standalone use. Klynt keeps
-    // embedded engine until Velra 1.0 via JitPack/Maven Central — no CI dep yet.
+    implementation(libs.compose.bom)
+    implementation(libs.material3)
+api(libs.material.icons.core)
+api(libs.material.icons.extended)
+api(libs.material)
+    implementation(libs.activity.compose)
+    implementation(libs.foundation)
+    implementation(libs.core.ktx)
+    implementation(libs.lifecycle.runtime.ktx)
+    implementation(libs.lifecycle.viewmodel.ktx)
+    implementation(libs.lifecycle.viewmodel.savedstate)
+    implementation(libs.coroutines.android)
+    implementation(libs.serialization.json)
+    implementation(libs.okhttp)
+    implementation(libs.gson)
+    implementation(libs.timber)
 
-    // Compose + Material 3 - Latest stable BOM
-    implementation(platform("androidx.compose:compose-bom:2024.08.00"))
-    implementation("androidx.compose.material3:material3")
-    api("androidx.compose.material:material-icons-core")
-    api("androidx.compose.material:material-icons-extended")
-    implementation("androidx.activity:activity-compose:1.9.2")
-    implementation("androidx.compose.foundation:foundation")
-    implementation("androidx.core:core-ktx:1.13.1")
-
-    // Lifecycle
-    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.2")
-    implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.2")
-    implementation("androidx.lifecycle:lifecycle-viewmodel-savedstate:2.8.2")
-
-    // Coroutines/Flow (-android pulls -core transitively)
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
-
-    // Serialization
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
-
-    // NOTE (diet): coil, work-runtime, navigation-compose,
-    // core-splashscreen, retrofit + converter-gson, QWEA0 liquidglass and
-    // MDC were removed — zero usages in main source (verified, v1.0.8).
-    // Update check uses OkHttp + Gson directly.
-    implementation("com.squareup.okhttp3:okhttp:4.12.0")
-
-    // JSON
-    implementation("com.google.code.gson:gson:2.10.1")
-
-    // Logging
-    implementation("com.jakewharton.timber:timber:5.0.1")
-
-    // Testing (launcher must be explicit: the jupiter aggregator
-    // does not pull it, and without it the executor fails to start)
-    testImplementation("org.junit.jupiter:junit-jupiter:5.10.2")
-    testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.10.2")
-    testImplementation("io.mockk:mockk:1.13.13")
-    testImplementation("app.cash.turbine:turbine:1.0.0")
-    androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
-    androidTestImplementation("androidx.compose.ui:ui-test-junit4:1.6.1")
-    androidTestImplementation("androidx.compose.ui:ui-test-manifest:1.6.1")
+    testImplementation(libs.test.junit.jupiter)
+    testRuntimeOnly(libs.test.junit.launcher)
+    testImplementation(libs.test.mockk)
+    testImplementation(libs.test.turbine)
+    androidTestImplementation(libs.android.test.espresso)
+    androidTestImplementation(libs.android.test.compose)
+    androidTestImplementation(libs.android.test.compose.manifest)
 }

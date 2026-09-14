@@ -92,20 +92,24 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: app/build/outputs/apk/release/klynt-*.apk
-          generate_release_notes: false
+          generate_release_notes: true
+          name: KLYNT ${{ github.ref_name }}
           body: |
             ## KLYNT ${{ github.ref_name }}
 
             ### Liquid Glass Floating Bottom Nav
+            - AGSL + C++ NDK engine, per-SoC adaptive quality
             - 26 Telegram variants + Twitter/X
-            - iOS-style pill blur, per-SoC adaptive quality
+            - iOS-style pill blur, thermal downgraded
 
             ### Requirements
-            - Android 11+ (API 30)
-            - Root + LSPosed with libxposed API 101+ (root-only, no LSPatch)
+            - Android 13+ (API 33)
+            - Root + LSPosed with libxposed API 101+ (arm64 only)
 
             ### Installation
-            1. If KLYNT is already installed: disable it in LSPosed, reboot, then uninstall the old APK first
-            2. Download `klynt-${{ github.ref_name }}-*.apk` (codename rotates every release)
-            3. Install & enable scope in LSPosed manager
-            4. Force-stop the target app and reopen it
+            1. Download `klynt-${{ github.ref_name }}-*.apk` (codename: `$(cat release-codename.txt)`)
+            2. Install → LSPosed → Modules → enable Klynt → tick target
+            3. Force-stop target app → reopen → pill appears
+
+            ### Changelog
+            See [CHANGELOG.md](https://github.com/U-Nyxx/Klynt/blob/main/CHANGELOG.md)

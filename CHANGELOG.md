@@ -1,5 +1,20 @@
 # Changelog
 
+## v1.0.12 (2026-09-14) — codename `a16v` — Polished repo + version catalog
+
+- **Version catalog**: added `gradle/libs.versions.toml`, migrated `build.gradle.kts` + `settings.gradle.kts` to use `libs.*` aliases
+- **Instrumented tests**: added `androidTest/` — `KlyntGlassInstrumentedTest` (Compose rule), `ScopeManagerInstrumentedTest` (scope list ↔ queries 27)
+- **Screenshots**: added `demo-manager.png`, `demo-settings.png`, `demo-hero-large.png`, updated `screenshots/README.md`
+- **CI**: enhanced `release.yml` — `generate_release_notes: true`, action-gh-release v2, APK rename with codename
+- **Project metadata**: added `FUNDING.yml`, `CODEOWNERS`, `renovate.json`, `Dangerfile`
+
+## v1.0.11 (2026-09-13) — codename `Bv8Q`
+
+- C++ NDK bridge: `klynt_hook.cpp` `__system_property_get` + `sysconf`
+- "apple" trademark removed throughout repo
+- Branch protection: `Build KLYNT` status check + 1 approval
+- `release.yml`: `set -euo pipefail`, codename sanitization
+
 ## v1.0.10 (2026-09-13) — codename `lVaA` — True Liquid Glass v2
 
 - AGSL v2: SDF-gradient normal, 3-tap CA, inner stroke, bevel per-SOC, cost 4/2 taps

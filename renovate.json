@@ -1,0 +1,25 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate.json",
+  "extends": [
+    "config:recommended"
+  ],
+  "schedule": [
+    "before 5am on monday"
+  ],
+  "packageRules": [
+    {
+      "matchPaths": ["app/build.gradle.kts"],
+      "groupName": "android dependencies",
+      "groupSlug": "android"
+    },
+    {
+      "matchPaths": ["gradle/libs.versions.toml"],
+      "groupName": "version catalog",
+      "groupSlug": "version-catalog"
+    }
+  ],
+  "ignorePaths": [
+    "explore/**"
+  ],
+  "minimumReleaseAge": "3 days"
+}

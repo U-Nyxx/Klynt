@@ -4,13 +4,16 @@ pluginManagement {
         mavenCentral()
         gradlePluginPortal()
     }
+    plugins {
+        alias(libs.plugins.android.application) apply false
+        alias(libs.plugins.kotlin.compose) apply false
+        alias(libs.plugins.kotlin.serialization) apply false
+    }
 }
 
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
     repositories {
-        // mavenCentral 403 from this network: try Indonesian/APAC mirrors
-        // + Google for androidx. Order: mirrors -> Google -> JetBrains -> Xposed
         maven("https://maven.aliyun.com/repository/public/")
         maven("https://repo1.maven.org/maven2/")
         google()

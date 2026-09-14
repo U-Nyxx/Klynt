@@ -1,0 +1,21 @@
+# CODEOWNERS — KLYNT
+# Pattern syntax: https://docs.github.com/en/repositories/working-with-files/using-files/getting-started-with-file-based-access-permissions#about-codeowners
+
+* @U-Nyxx
+
+# CI workflow
+.github/workflows/release.yml @U-Nyxx
+
+# Engine
+app/src/main/java/com/unyxx/act/liquidglass/engine/ @U-Nyxx
+app/src/main/cpp/ @U-Nyxx
+
+# Hooks
+app/src/main/java/com/unyxx/act/xposed/ @U-Nyxx
+
+# Manager UI
+app/src/main/java/com/unyxx/act/manager/ @U-Nyxx
+
+# Docs
+docs/ @U-Nyxx
+CHANGELOG.md @U-Nyxx
