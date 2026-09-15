@@ -48,14 +48,18 @@ object GitHubApi {
      * costs (almost) no rate-limit quota, so the manager can check on
      * every foreground instead of a 24h cache.
      *
+     * When [force] is true the ETag is ignored and a full fetch is
+     * issued, bypassing the conditional check entirely.
+     *
      * @throws Exception on network/parse failure (caller maps to UI state).
      */
-    suspend fun fetchLatest(etag: String? = null): FetchResult = withContext(Dispatchers.IO) {
+    suspend fun fetchLatest(etag: String? = null, force: Boolean = false): FetchResult = withContext(Dispatchers.IO) {
+        val effectiveEtag = if (force) null else etag
         val builder = Request.Builder()
             .url(LATEST_URL)
             .header("Accept", "application/vnd.github+json")
             .header("User-Agent", "KLYNT-Android")
-        if (!etag.isNullOrBlank()) builder.header("If-None-Match", etag)
+        if (!effectiveEtag.isNullOrBlank()) builder.header("If-None-Match", effectiveEtag)
         client.newCall(builder.build()).execute().use { response ->
             if (response.code == 304) {
                 return@withContext FetchResult(null, etag, notModified = true)

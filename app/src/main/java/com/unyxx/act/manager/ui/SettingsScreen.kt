@@ -21,44 +21,73 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.Brightness4
+import androidx.compose.material.icons.filled.Contrast
+import androidx.compose.material.icons.filled.ColorLens
+import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.Translate
+import androidx.compose.material.icons.filled.Article
+import androidx.compose.material.icons.filled.BugReport
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.PauseCircle
+import androidx.compose.material.icons.filled.FormatAlignLeft
+import androidx.compose.material.icons.filled.FileDownload
+import androidx.compose.material.icons.filled.Backup
+import androidx.compose.material.icons.filled.CloudUpload
+import androidx.compose.material.icons.filled.CloudDownload
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material3.Button
-import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.LocalClipboardManager
-import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
 import com.unyxx.act.R
+import com.unyxx.act.xposed.prefs.PrefsSchema
+import com.unyxx.act.manager.update.UpdateErrorCause
 import com.unyxx.act.manager.update.UpdateState
 import com.unyxx.act.manager.viewmodel.SettingsViewModel
 
-/** Functional settings: global kill-switch, auto-start, about. */
+/** Functional settings: global kill-switch, auto-start, theme, language, logs, backup. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(viewModel: SettingsViewModel) {
     val globalEnabled by viewModel.globalEnabled.collectAsState()
     val autoStart by viewModel.autoStart.collectAsState()
+    val themeMode by viewModel.themeMode.collectAsState()
+    val pureBlackOled by viewModel.pureBlackOled.collectAsState()
+    val accentColor by viewModel.accentColor.collectAsState()
+    val followSystemAccent by viewModel.followSystemAccent.collectAsState()
+    val language by viewModel.language.collectAsState()
+    val logVerbose by viewModel.logVerbose.collectAsState()
+    val logAutoscroll by viewModel.logAutoscroll.collectAsState()
+    val logPaused by viewModel.logPaused.collectAsState()
+    val logWordWrap by viewModel.logWordWrap.collectAsState()
     val updateState by viewModel.updateState.collectAsState()
     val context = LocalContext.current
     val appVersion = remember {
@@ -72,7 +101,7 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Settings", fontSize = 20.sp, fontWeight = FontWeight.Bold) },
+                title = { Text(stringResource(R.string.tab_settings), fontSize = 20.sp, fontWeight = FontWeight.Bold) },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surfaceVariant
                 )
@@ -88,22 +117,40 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             item {
-                SettingsSection(title = "Core", icon = Icons.Filled.Tune) {
+                SettingsSection(title = stringResource(R.string.setup_title), icon = Icons.Filled.Tune) {
                     SettingSwitch(
-                        title = "Global Liquid Glass",
-                        subtitle = "Master switch — mirrored to hooks, no restart needed for new screens",
+                        title = stringResource(R.string.check_binder),
+                        subtitle = stringResource(R.string.check_binder_hint),
                         icon = Icons.Filled.Tune,
                         checked = globalEnabled,
                         onChecked = { viewModel.setGlobalEnabled(it) }
                     )
                     SettingSwitch(
-                        title = "Auto-start on Boot",
+                        title = stringResource(R.string.action_mark_restarted),
                         subtitle = "Re-apply hooks after reboot (manager-local)",
                         icon = Icons.Filled.RestartAlt,
                         checked = autoStart,
                         onChecked = { viewModel.setAutoStart(it) }
                     )
                 }
+            }
+            item {
+                ThemeSection(
+                    themeMode = themeMode,
+                    pureBlackOled = pureBlackOled,
+                    accentColor = accentColor,
+                    followSystemAccent = followSystemAccent,
+                    onThemeModeChange = { viewModel.setThemeMode(it) },
+                    onPureBlackOledChange = { viewModel.setPureBlackOled(it) },
+                    onAccentColorChange = { viewModel.setAccentColor(it) },
+                    onFollowSystemAccentChange = { viewModel.setFollowSystemAccent(it) }
+                )
+            }
+            item {
+                LanguageSection(
+                    language = language,
+                    onLanguageChange = { viewModel.setLanguage(it) }
+                )
             }
             item {
                 UpdateSection(
@@ -115,12 +162,31 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
                 )
             }
             item {
+                LogSection(
+                    verbose = logVerbose,
+                    autoscroll = logAutoscroll,
+                    paused = logPaused,
+                    wordWrap = logWordWrap,
+                    onVerboseChange = { viewModel.setLogVerbose(it) },
+                    onAutoscrollChange = { viewModel.setLogAutoscroll(it) },
+                    onPausedChange = { viewModel.setLogPaused(it) },
+                    onWordWrapChange = { viewModel.setLogWordWrap(it) },
+                    onExport = { /* TODO: implement export */ }
+                )
+            }
+            item {
+                BackupSection(
+                    onBackup = { viewModel.exportSettings(context).also { copyToClipboard(context, it) } },
+                    onRestore = { /* TODO: implement restore picker */ }
+                )
+            }
+            item {
                 SettingsSection(title = "Preview", icon = Icons.Filled.Tune) {
                     GlassPreview()
                 }
             }
             item {
-                SettingsSection(title = "About", icon = Icons.Filled.Info) {
+                SettingsSection(title = stringResource(R.string.tab_settings), icon = Icons.Filled.Info) {
                     SettingInfo(
                         title = "Version",
                         subtitle = "v$appVersion · libxposed API 101"
@@ -149,8 +215,6 @@ private fun UpdateSection(
     onInstall: () -> Unit
 ) {
     val context = LocalContext.current
-    // Installed version + last-check stamp: update info must show
-    // BOTH sides (local → remote), never remote alone.
     val localVersion = remember {
         com.unyxx.act.manager.update.UpdateRepository.localVersion(context)
     }
@@ -207,10 +271,6 @@ private fun UpdateSection(
                         R.string.update_size_mb, info.sizeBytes / 1048576f
                     )
                 )
-                // Signing-key rotation (v1.0.4+): in-app install from
-                // v1.0.3 or older fails silently at the package installer.
-                // Warn instead of letting the user tap into a dead end.
-                // The check sunsets itself once everyone is past 1.0.3.
                 if (com.unyxx.act.network.ReleaseInfo.compareVersions(localVersion, "1.0.3") <= 0) {
                     Text(
                         stringResource(R.string.update_rotation_warn),
@@ -275,17 +335,11 @@ private fun UpdateSection(
                 )
             }
             is UpdateState.Failed -> {
-                // Raw errors ("GitHub HTTP 403") mean nothing to users:
-                // translate the common ones, keep the raw text as detail.
-                val hint = when {
-                    "403" in state.message ->
-                        stringResource(R.string.update_hint_rate)
-                    state.message.contains("resolve", ignoreCase = true) ||
-                        state.message.contains("UnknownHost", ignoreCase = true) ||
-                        state.message.contains("Connect", ignoreCase = true) ||
-                        state.message.contains("timeout", ignoreCase = true) ||
-                        state.message.contains("Network", ignoreCase = true) ->
-                        stringResource(R.string.update_hint_network)
+                val hint = when (state.cause) {
+                    UpdateErrorCause.Network -> stringResource(R.string.update_hint_network)
+                    UpdateErrorCause.RateLimited -> stringResource(R.string.update_hint_rate)
+                    UpdateErrorCause.NotFound -> stringResource(R.string.update_hint_notfound)
+                    UpdateErrorCause.AssetMismatch -> stringResource(R.string.update_hint_asset)
                     else -> state.message
                 }
                 SettingInfo(
@@ -395,6 +449,298 @@ private fun SettingSwitch(
             )
         }
         Switch(checked = checked, onCheckedChange = onChecked)
+    }
+}
+
+@Composable
+private fun SettingInfo(title: String, subtitle: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 6.dp)
+            .background(
+                color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                shape = RoundedCornerShape(12.dp)
+            )
+            .padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column {
+            Text(title, style = MaterialTheme.typography.bodyLarge)
+            Text(
+                subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+/**
+ * Theme/Appearance section with simple cycle-through selectors.
+ */
+@Composable
+private fun ThemeSection(
+    themeMode: PrefsSchema.ThemeMode,
+    pureBlackOled: Boolean,
+    accentColor: PrefsSchema.AccentColor,
+    followSystemAccent: Boolean,
+    onThemeModeChange: (PrefsSchema.ThemeMode) -> Unit,
+    onPureBlackOledChange: (Boolean) -> Unit,
+    onAccentColorChange: (PrefsSchema.AccentColor) -> Unit,
+    onFollowSystemAccentChange: (Boolean) -> Unit
+) {
+    SettingsSection(title = stringResource(R.string.section_theme), icon = Icons.Filled.Palette) {
+        // Theme mode - click to cycle
+        SettingCycleButton(
+            title = stringResource(R.string.theme_mode),
+            subtitle = stringResource(R.string.theme_mode_sub),
+            icon = Icons.Filled.Brightness4,
+            currentValue = themeMode,
+            options = PrefsSchema.ThemeMode.values(),
+            labels = PrefsSchema.ThemeMode.values().map {
+                when (it) {
+                    PrefsSchema.ThemeMode.SYSTEM -> stringResource(R.string.theme_system)
+                    PrefsSchema.ThemeMode.LIGHT -> stringResource(R.string.theme_light)
+                    PrefsSchema.ThemeMode.DARK -> stringResource(R.string.theme_dark)
+                    PrefsSchema.ThemeMode.PURE_BLACK -> stringResource(R.string.theme_pure_black)
+                }
+            },
+            onSelected = onThemeModeChange
+        )
+
+        // Pure black OLED toggle (only shown when not already in pure black mode)
+        if (themeMode != PrefsSchema.ThemeMode.PURE_BLACK) {
+            SettingSwitch(
+                title = stringResource(R.string.pure_black_oled),
+                subtitle = stringResource(R.string.pure_black_oled_sub),
+                icon = Icons.Filled.Contrast,
+                checked = pureBlackOled,
+                onChecked = onPureBlackOledChange
+            )
+        }
+
+        // Accent color - click to cycle
+        SettingCycleButton(
+            title = stringResource(R.string.accent_color),
+            subtitle = stringResource(R.string.accent_color_sub),
+            icon = Icons.Filled.ColorLens,
+            currentValue = accentColor,
+            options = PrefsSchema.AccentColor.values(),
+            labels = PrefsSchema.AccentColor.values().map { it.name.uppercase() },
+            onSelected = onAccentColorChange
+        )
+
+        // Follow system accent
+        SettingSwitch(
+            title = stringResource(R.string.follow_system_accent),
+            subtitle = stringResource(R.string.follow_system_accent_sub),
+            icon = Icons.Filled.Palette,
+            checked = followSystemAccent,
+            onChecked = onFollowSystemAccentChange
+        )
+    }
+}
+
+/**
+ * Language section with cycle button.
+ */
+@Composable
+private fun LanguageSection(
+    language: PrefsSchema.Language,
+    onLanguageChange: (PrefsSchema.Language) -> Unit
+) {
+    SettingsSection(title = stringResource(R.string.section_language), icon = Icons.Filled.Language) {
+        SettingCycleButton(
+            title = stringResource(R.string.language),
+            subtitle = stringResource(R.string.language_sub),
+            icon = Icons.Filled.Translate,
+            currentValue = language,
+            options = PrefsSchema.Language.values(),
+            labels = PrefsSchema.Language.values().map {
+                when (it) {
+                    PrefsSchema.Language.SYSTEM -> stringResource(R.string.lang_system)
+                    PrefsSchema.Language.ENGLISH -> stringResource(R.string.lang_english)
+                    PrefsSchema.Language.INDONESIAN -> stringResource(R.string.lang_indonesian)
+                }
+            },
+            onSelected = onLanguageChange
+        )
+    }
+}
+
+/**
+ * Log settings section.
+ */
+@Composable
+private fun LogSection(
+    verbose: Boolean,
+    autoscroll: Boolean,
+    paused: Boolean,
+    wordWrap: Boolean,
+    onVerboseChange: (Boolean) -> Unit,
+    onAutoscrollChange: (Boolean) -> Unit,
+    onPausedChange: (Boolean) -> Unit,
+    onWordWrapChange: (Boolean) -> Unit,
+    onExport: () -> Unit
+) {
+    SettingsSection(title = stringResource(R.string.section_log), icon = Icons.Filled.Article) {
+        SettingSwitch(
+            title = stringResource(R.string.log_verbose),
+            subtitle = stringResource(R.string.log_verbose_sub),
+            icon = Icons.Filled.BugReport,
+            checked = verbose,
+            onChecked = onVerboseChange
+        )
+        SettingSwitch(
+            title = stringResource(R.string.log_autoscroll),
+            subtitle = stringResource(R.string.log_autoscroll_sub),
+            icon = Icons.Filled.KeyboardArrowDown,
+            checked = autoscroll,
+            onChecked = onAutoscrollChange
+        )
+        SettingSwitch(
+            title = stringResource(R.string.log_pause),
+            subtitle = stringResource(R.string.log_pause_sub),
+            icon = Icons.Filled.PauseCircle,
+            checked = paused,
+            onChecked = onPausedChange
+        )
+        SettingSwitch(
+            title = stringResource(R.string.log_word_wrap),
+            subtitle = stringResource(R.string.log_word_wrap_sub),
+            icon = Icons.Filled.FormatAlignLeft,
+            checked = wordWrap,
+            onChecked = onWordWrapChange
+        )
+        SettingAction(
+            title = stringResource(R.string.log_export),
+            subtitle = stringResource(R.string.log_export_sub),
+            icon = Icons.Filled.FileDownload,
+            onClick = onExport
+        )
+    }
+}
+
+/**
+ * Backup & Restore section.
+ */
+@Composable
+private fun BackupSection(
+    onBackup: () -> Unit,
+    onRestore: () -> Unit
+) {
+    SettingsSection(title = stringResource(R.string.section_backup), icon = Icons.Filled.Backup) {
+        SettingAction(
+            title = stringResource(R.string.backup_settings),
+            subtitle = stringResource(R.string.backup_settings_sub),
+            icon = Icons.Filled.CloudUpload,
+            onClick = onBackup
+        )
+        SettingAction(
+            title = stringResource(R.string.restore_settings),
+            subtitle = stringResource(R.string.restore_settings_sub),
+            icon = Icons.Filled.CloudDownload,
+            onClick = onRestore
+        )
+    }
+}
+
+/**
+ * Cycle button - click to cycle through enum options.
+ */
+@Composable
+private fun <T : Enum<T>> SettingCycleButton(
+    title: String,
+    subtitle: String,
+    icon: ImageVector,
+    currentValue: T,
+    options: Array<T>,
+    labels: List<String>,
+    onSelected: (T) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 6.dp)
+            .background(
+                color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                shape = RoundedCornerShape(12.dp)
+            )
+            .padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(24.dp)
+        )
+        Spacer(modifier = Modifier.size(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.bodyLarge)
+            Text(
+                subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Button(
+            onClick = {
+                val currentIndex = currentValue.ordinal
+                val nextIndex = (currentIndex + 1) % options.size
+                onSelected(options[nextIndex])
+            }
+        ) {
+            Text(labels[currentValue.ordinal])
+            Spacer(modifier = Modifier.size(4.dp))
+            Icon(Icons.Filled.ExpandMore, contentDescription = null, modifier = Modifier.size(16.dp))
+        }
+    }
+}
+
+/**
+ * Action button setting (for export, backup, etc.)
+ */
+@Composable
+private fun SettingAction(
+    title: String,
+    subtitle: String,
+    icon: ImageVector,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 6.dp)
+            .background(
+                color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                shape = RoundedCornerShape(12.dp)
+            )
+            .padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(24.dp)
+        )
+        Spacer(modifier = Modifier.size(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.bodyLarge)
+            Text(
+                subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        TextButton(
+            onClick = onClick,
+            modifier = Modifier.padding(start = 8.dp)
+        ) {
+            Text(stringResource(R.string.update_check_btn))
+        }
     }
 }
 
@@ -519,26 +865,8 @@ private fun GlassPreview() {
     }
 }
 
-@Composable
-private fun SettingInfo(title: String, subtitle: String) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 6.dp)
-            .background(
-                color = MaterialTheme.colorScheme.surfaceContainerHighest,
-                shape = RoundedCornerShape(12.dp)
-            )
-            .padding(16.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column {
-            Text(title, style = MaterialTheme.typography.bodyLarge)
-            Text(
-                subtitle,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-    }
+private fun copyToClipboard(context: android.content.Context, text: String) {
+    val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+    val clip = android.content.ClipData.newPlainText("KLYNT Backup", text)
+    clipboard.setPrimaryClip(clip)
 }

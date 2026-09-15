@@ -12,6 +12,41 @@ import com.unyxx.act.network.ReleaseInfo
 import com.unyxx.act.xposed.prefs.PrefsSchema
 import java.io.File
 
+/**
+ * Structured cause for update failures. Each case maps to a
+ * specific user-facing hint in the Settings UI.
+ */
+sealed interface UpdateErrorCause {
+    data object Network : UpdateErrorCause
+    data object RateLimited : UpdateErrorCause
+    data object NotFound : UpdateErrorCause
+    data object AssetMismatch : UpdateErrorCause
+    data object Unknown : UpdateErrorCause
+
+    companion object {
+        fun from(message: String?, httpCode: Int? = null): UpdateErrorCause {
+            val msg = message ?: ""
+            return when {
+                httpCode == 404 || msg.contains("404", ignoreCase = true) ||
+                    msg.contains("not found", ignoreCase = true) -> NotFound
+                httpCode == 403 || msg.contains("403", ignoreCase = true) ||
+                    msg.contains("rate limit", ignoreCase = true) -> RateLimited
+                msg.contains("resolve", ignoreCase = true) ||
+                    msg.contains("UnknownHost", ignoreCase = true) ||
+                    msg.contains("Connect", ignoreCase = true) ||
+                    msg.contains("timeout", ignoreCase = true) ||
+                    msg.contains("Network", ignoreCase = true) ||
+                    msg.contains("No connection", ignoreCase = true) ||
+                    msg.contains("Tidak ada koneksi", ignoreCase = true) -> Network
+                msg.contains("asset", ignoreCase = true) ||
+                    msg.contains("signing", ignoreCase = true) ||
+                    msg.contains("No signed KLYNT", ignoreCase = true) -> AssetMismatch
+                else -> Unknown
+            }
+        }
+    }
+}
+
 /** UI states for the update flow. */
 sealed interface UpdateState {
     data object Idle : UpdateState
@@ -20,7 +55,7 @@ sealed interface UpdateState {
     data class Available(val info: ReleaseInfo) : UpdateState
     data class Downloading(val progress: Float?) : UpdateState
     data class Downloaded(val file: File) : UpdateState
-    data class Failed(val message: String) : UpdateState
+    data class Failed(val message: String, val cause: UpdateErrorCause = UpdateErrorCause.Unknown) : UpdateState
 }
 
 /**
@@ -64,26 +99,23 @@ object UpdateRepository {
     /**
      * Realtime check on every call (foreground + manual): conditional GET
      * via ETag, so unchanged releases cost ~no quota. Throws nothing.
-     * [force] retries the network even when a fresh state was just
-     * computed; offline it still surfaces last-known state.
+     * [force] bypasses the ETag and issues a full fetch when true.
      */
     suspend fun check(context: Context, force: Boolean): UpdateState {
         val p = prefs(context)
         val now = System.currentTimeMillis()
         return try {
-            val result = GitHubApi.fetchLatest(p.getString(KEY_ETAG, null))
+            val result = GitHubApi.fetchLatest(p.getString(KEY_ETAG, null), force)
             val info = if (result.notModified) {
-                // 304 with no cache (prefs wiped, ETag survived): stamp and
-                // report local truth instead of a false "no update" state.
                 cachedInfo(p) ?: run {
                     p.edit().putLong(KEY_CHECK_MS, now).apply()
                     return UpdateState.UpToDate(localVersion(context))
                 }
             } else {
                 val release = result.release
-                    ?: return UpdateState.Failed("Release has no build attached")
+                    ?: return UpdateState.Failed("Release has no build attached", UpdateErrorCause.Unknown)
                 val fresh = ReleaseInfo.from(release)
-                    ?: return UpdateState.Failed("No signed KLYNT APK in latest release")
+                    ?: return UpdateState.Failed("No signed KLYNT APK in latest release", UpdateErrorCause.AssetMismatch)
                 p.edit()
                     .putString(KEY_TAG, fresh.version)
                     .putString(KEY_NOTES, fresh.notes)
@@ -102,17 +134,14 @@ object UpdateRepository {
                 UpdateState.UpToDate(localVersion(context))
             }
         } catch (t: Throwable) {
-            // Offline: fall back to last known state instead of erroring,
-            // so the section degrades to stale-info, not a dead end.
-            // Manual retry included: a known-newer build is worth showing
-            // even when the user explicitly asked.
+            val cause = UpdateErrorCause.from(t.message)
             val stale = cachedInfo(p)
             if (stale != null && stale.apkUrl.isNotBlank() &&
-                stale.isNewerThan(localVersion(context))
+                stale.isNewerThan(localVersion(context)) && !force
             ) {
                 UpdateState.Available(stale)
             } else {
-                UpdateState.Failed(t.message ?: "Network error")
+                UpdateState.Failed(t.message ?: "Network error", cause)
             }
         }
     }

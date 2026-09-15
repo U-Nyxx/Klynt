@@ -13,6 +13,19 @@ object PrefsSchema {
     const val LOG_LEVEL = "log_level"
     const val AUTO_START_ENABLED = "auto_start_enabled"
 
+    // UI / Theme
+    const val THEME_MODE = "theme_mode"
+    const val PURE_BLACK_OLED = "pure_black_oled"
+    const val ACCENT_COLOR = "accent_color"
+    const val LANGUAGE = "language"
+    const val FOLLOW_SYSTEM_ACCENT = "follow_system_accent"
+
+    // Log settings
+    const val LOG_VERBOSE = "log_verbose"
+    const val LOG_AUTOSCROLL = "log_autoscroll"
+    const val LOG_PAUSED = "log_paused"
+    const val LOG_WORD_WRAP = "log_word_wrap"
+
     // Per-app keys: "app:{package}:{feature}"
     private const val APP_PREFIX = "app:"
 
@@ -48,5 +61,21 @@ object PrefsSchema {
         // Platform's Clear variant: max transparency + full refraction +
         // dimming for legibility. Default OFF (Regular).
         GLASS_CLEAR(false)
+    }
+
+    /** Theme mode: 0 = System, 1 = Light, 2 = Dark, 3 = Pure Black OLED. */
+    enum class ThemeMode(val defaultValue: Int = 0) {
+        SYSTEM(0), LIGHT(1), DARK(2), PURE_BLACK(3)
+    }
+
+    /** Language: 0 = System, 1 = English, 2 = Indonesian. */
+    enum class Language(val defaultValue: Int = 0) {
+        SYSTEM(0), ENGLISH(1), INDONESIAN(2)
+    }
+
+    /** Predefined accent colors (Material 3 tonal palette keys). */
+    enum class AccentColor(val defaultValue: String = "blue") {
+        BLUE("blue"), GREEN("green"), PURPLE("purple"), ORANGE("orange"),
+        TEAL("teal"), PINK("pink"), RED("red"), AMBER("amber")
     }
 }

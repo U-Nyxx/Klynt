@@ -376,6 +376,111 @@ object ServiceLocator {
         }
     }
 
+    // Theme / Appearance
+    fun getThemeMode(): PrefsSchema.ThemeMode {
+        val p = prefs ?: return PrefsSchema.ThemeMode.SYSTEM
+        return try {
+            PrefsSchema.ThemeMode.values().first { it.defaultValue == p.getInt(PrefsSchema.THEME_MODE, 0) }
+        } catch (_: Throwable) {
+            PrefsSchema.ThemeMode.SYSTEM
+        }
+    }
+
+    fun setThemeMode(mode: PrefsSchema.ThemeMode) {
+        prefs?.edit()?.putInt(PrefsSchema.THEME_MODE, mode.defaultValue)?.apply()
+        Logger.d { "Theme mode = $mode" }
+    }
+
+    fun isPureBlackOled(): Boolean {
+        val p = prefs ?: return false
+        return p.getBoolean(PrefsSchema.PURE_BLACK_OLED, false)
+    }
+
+    fun setPureBlackOled(enabled: Boolean) {
+        prefs?.edit()?.putBoolean(PrefsSchema.PURE_BLACK_OLED, enabled)?.apply()
+        Logger.d { "Pure black OLED = $enabled" }
+    }
+
+    fun getAccentColor(): PrefsSchema.AccentColor {
+        val p = prefs ?: return PrefsSchema.AccentColor.BLUE
+        return try {
+            PrefsSchema.AccentColor.values().first { it.defaultValue == p.getString(PrefsSchema.ACCENT_COLOR, "blue") }
+        } catch (_: Throwable) {
+            PrefsSchema.AccentColor.BLUE
+        }
+    }
+
+    fun setAccentColor(color: PrefsSchema.AccentColor) {
+        prefs?.edit()?.putString(PrefsSchema.ACCENT_COLOR, color.defaultValue)?.apply()
+        Logger.d { "Accent color = $color" }
+    }
+
+    fun isFollowSystemAccent(): Boolean {
+        val p = prefs ?: return false
+        return p.getBoolean(PrefsSchema.FOLLOW_SYSTEM_ACCENT, false)
+    }
+
+    fun setFollowSystemAccent(enabled: Boolean) {
+        prefs?.edit()?.putBoolean(PrefsSchema.FOLLOW_SYSTEM_ACCENT, enabled)?.apply()
+        Logger.d { "Follow system accent = $enabled" }
+    }
+
+    // Language
+    fun getLanguage(): PrefsSchema.Language {
+        val p = prefs ?: return PrefsSchema.Language.SYSTEM
+        return try {
+            PrefsSchema.Language.values().first { it.defaultValue == p.getInt(PrefsSchema.LANGUAGE, 0) }
+        } catch (_: Throwable) {
+            PrefsSchema.Language.SYSTEM
+        }
+    }
+
+    fun setLanguage(lang: PrefsSchema.Language) {
+        prefs?.edit()?.putInt(PrefsSchema.LANGUAGE, lang.defaultValue)?.apply()
+        Logger.d { "Language = $lang" }
+    }
+
+    // Log settings
+    fun isLogVerbose(): Boolean {
+        val p = prefs ?: return false
+        return p.getBoolean(PrefsSchema.LOG_VERBOSE, false)
+    }
+
+    fun setLogVerbose(enabled: Boolean) {
+        prefs?.edit()?.putBoolean(PrefsSchema.LOG_VERBOSE, enabled)?.apply()
+        Logger.d { "Log verbose = $enabled" }
+    }
+
+    fun isLogAutoscroll(): Boolean {
+        val p = prefs ?: return true
+        return p.getBoolean(PrefsSchema.LOG_AUTOSCROLL, true)
+    }
+
+    fun setLogAutoscroll(enabled: Boolean) {
+        prefs?.edit()?.putBoolean(PrefsSchema.LOG_AUTOSCROLL, enabled)?.apply()
+        Logger.d { "Log autoscroll = $enabled" }
+    }
+
+    fun isLogPaused(): Boolean {
+        val p = prefs ?: return false
+        return p.getBoolean(PrefsSchema.LOG_PAUSED, false)
+    }
+
+    fun setLogPaused(enabled: Boolean) {
+        prefs?.edit()?.putBoolean(PrefsSchema.LOG_PAUSED, enabled)?.apply()
+        Logger.d { "Log paused = $enabled" }
+    }
+
+    fun isLogWordWrap(): Boolean {
+        val p = prefs ?: return true
+        return p.getBoolean(PrefsSchema.LOG_WORD_WRAP, true)
+    }
+
+    fun setLogWordWrap(enabled: Boolean) {
+        prefs?.edit()?.putBoolean(PrefsSchema.LOG_WORD_WRAP, enabled)?.apply()
+        Logger.d { "Log word wrap = $enabled" }
+    }
+
     // App Scope Check
     fun isAppInScope(packageName: String): Boolean {
         val pm = context?.packageManager ?: return false
