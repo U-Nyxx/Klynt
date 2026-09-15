@@ -50,6 +50,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.unyxx.act.manager.di.ServiceLocator
 import com.unyxx.act.manager.viewmodel.AppsViewModel
+import com.unyxx.act.xposed.prefs.PrefsSchema
 import com.unyxx.act.xposed.scope.AppFamily
 import android.graphics.Bitmap
 import android.graphics.drawable.BitmapDrawable
@@ -405,12 +406,18 @@ private fun ModeSelector(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            val modes = listOf(
-                com.unyxx.act.xposed.prefs.PrefsSchema.GhostMode.AUTO to stringResource(R.string.mode_auto),
-                com.unyxx.act.xposed.prefs.PrefsSchema.GhostMode.FORCE_GHOST to stringResource(R.string.mode_ghost),
-                com.unyxx.act.xposed.prefs.PrefsSchema.GhostMode.GLASS_ONLY to stringResource(R.string.mode_glass)
+            val modes: List<com.unyxx.act.xposed.prefs.PrefsSchema.GhostMode> = listOf(
+                com.unyxx.act.xposed.prefs.PrefsSchema.GhostMode.AUTO,
+                com.unyxx.act.xposed.prefs.PrefsSchema.GhostMode.FORCE_GHOST,
+                com.unyxx.act.xposed.prefs.PrefsSchema.GhostMode.GLASS_ONLY
             )
-            modes.forEach { (mode, label) ->
+            val modeLabels = listOf(
+                stringResource(R.string.mode_auto),
+                stringResource(R.string.mode_ghost),
+                stringResource(R.string.mode_glass)
+            )
+            modes.forEachIndexed { index, mode ->
+                val label = modeLabels[index]
                 val selected = mode == current
                 if (selected) {
                     androidx.compose.material3.FilledTonalButton(

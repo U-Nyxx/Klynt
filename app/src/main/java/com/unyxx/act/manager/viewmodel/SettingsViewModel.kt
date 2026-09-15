@@ -19,7 +19,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-/** UI state source for Settings (global kill-switch + auto-start + theme + logs). */
 class SettingsViewModel : ViewModel() {
 
     private val _globalEnabled = MutableStateFlow(ServiceLocator.isGlobalEnabled())
@@ -28,7 +27,6 @@ class SettingsViewModel : ViewModel() {
     private val _autoStart = MutableStateFlow(ServiceLocator.isAutoStartEnabled())
     val autoStart: StateFlow<Boolean> = _autoStart.asStateFlow()
 
-    // Theme
     private val _themeMode = MutableStateFlow(PrefsSchema.ThemeMode.SYSTEM)
     val themeMode: StateFlow<PrefsSchema.ThemeMode> = _themeMode.asStateFlow()
 
@@ -41,11 +39,9 @@ class SettingsViewModel : ViewModel() {
     private val _followSystemAccent = MutableStateFlow(false)
     val followSystemAccent: StateFlow<Boolean> = _followSystemAccent.asStateFlow()
 
-    // Language
     private val _language = MutableStateFlow(PrefsSchema.Language.SYSTEM)
     val language: StateFlow<PrefsSchema.Language> = _language.asStateFlow()
 
-    // Log settings
     private val _logVerbose = MutableStateFlow(false)
     val logVerbose: StateFlow<Boolean> = _logVerbose.asStateFlow()
 
@@ -60,79 +56,57 @@ class SettingsViewModel : ViewModel() {
 
     fun setGlobalEnabled(enabled: Boolean) {
         _globalEnabled.value = enabled
-        viewModelScope.launch(Dispatchers.IO) {
-            ServiceLocator.setGlobalEnabled(enabled)
-        }
+        viewModelScope.launch(Dispatchers.IO) { ServiceLocator.setGlobalEnabled(enabled) }
     }
 
     fun setAutoStart(enabled: Boolean) {
         _autoStart.value = enabled
-        viewModelScope.launch(Dispatchers.IO) {
-            ServiceLocator.setAutoStartEnabled(enabled)
-        }
+        viewModelScope.launch(Dispatchers.IO) { ServiceLocator.setAutoStartEnabled(enabled) }
     }
 
     fun setThemeMode(mode: PrefsSchema.ThemeMode) {
         _themeMode.value = mode
-        viewModelScope.launch(Dispatchers.IO) {
-            ServiceLocator.setThemeMode(mode)
-        }
+        viewModelScope.launch(Dispatchers.IO) { ServiceLocator.setThemeMode(mode) }
     }
 
     fun setPureBlackOled(enabled: Boolean) {
         _pureBlackOled.value = enabled
-        viewModelScope.launch(Dispatchers.IO) {
-            ServiceLocator.setPureBlackOled(enabled)
-        }
+        viewModelScope.launch(Dispatchers.IO) { ServiceLocator.setPureBlackOled(enabled) }
     }
 
     fun setAccentColor(color: PrefsSchema.AccentColor) {
         _accentColor.value = color
-        viewModelScope.launch(Dispatchers.IO) {
-            ServiceLocator.setAccentColor(color)
-        }
+        viewModelScope.launch(Dispatchers.IO) { ServiceLocator.setAccentColor(color) }
     }
 
     fun setFollowSystemAccent(enabled: Boolean) {
         _followSystemAccent.value = enabled
-        viewModelScope.launch(Dispatchers.IO) {
-            ServiceLocator.setFollowSystemAccent(enabled)
-        }
+        viewModelScope.launch(Dispatchers.IO) { ServiceLocator.setFollowSystemAccent(enabled) }
     }
 
     fun setLanguage(lang: PrefsSchema.Language) {
         _language.value = lang
-        viewModelScope.launch(Dispatchers.IO) {
-            ServiceLocator.setLanguage(lang)
-        }
+        viewModelScope.launch(Dispatchers.IO) { ServiceLocator.setLanguage(lang) }
     }
 
     fun setLogVerbose(enabled: Boolean) {
         _logVerbose.value = enabled
-        viewModelScope.launch(Dispatchers.IO) {
-            ServiceLocator.setLogVerbose(enabled)
-        }
+        viewModelScope.launch(Dispatchers.IO) { ServiceLocator.setLogVerbose(enabled) }
     }
 
     fun setLogAutoscroll(enabled: Boolean) {
         _logAutoscroll.value = enabled
-        viewModelScope.launch(Dispatchers.IO) {
-            ServiceLocator.setLogAutoscroll(enabled)
-        }
+        viewModelScope.launch(Dispatchers.IO) { ServiceLocator.setLogAutoscroll(enabled) }
     }
 
     fun setLogPaused(enabled: Boolean) {
         _logPaused.value = enabled
-        viewModelScope.launch(Dispatchers.IO) {
-            ServiceLocator.setLogPaused(enabled)
-        }
+        viewModelScope.launch(Dispatchers.IO) { ServiceLocator.setLogPaused(enabled) }
     }
 
     fun setLogWordWrap(enabled: Boolean) {
         _logWordWrap.value = enabled
-        viewModelScope.launch(Dispatchers.IO) {
-            ServiceLocator.setLogWordWrap(enabled)
-        }
+        viewModelScope.launch(Dispatchers.IO) { ServiceLocator.setLogWordWrap(enabled) }
     }
 
     fun refresh() {
@@ -153,19 +127,13 @@ class SettingsViewModel : ViewModel() {
 
     private val _updateState = MutableStateFlow<UpdateState>(UpdateState.Idle)
     val updateState: StateFlow<UpdateState> = _updateState.asStateFlow()
-
     private var downloadJob: Job? = null
 
-    /** Auto-check used on Home open (24h cache); [force] bypasses cache. */
     fun checkForUpdates(context: Context, force: Boolean = false) {
-        if (_updateState.value is UpdateState.Checking ||
-            _updateState.value is UpdateState.Downloading
-        ) return
+        if (_updateState.value is UpdateState.Checking || _updateState.value is UpdateState.Downloading) return
         _updateState.value = UpdateState.Checking
         viewModelScope.launch(Dispatchers.IO) {
-            _updateState.value = UpdateRepository.check(
-                context.applicationContext, force
-            )
+            _updateState.value = UpdateRepository.check(context.applicationContext, force)
         }
     }
 
@@ -186,9 +154,7 @@ class SettingsViewModel : ViewModel() {
                 delay(500L)
                 when {
                     UpdateRepository.isComplete(appCtx, id) -> {
-                        _updateState.value = UpdateState.Downloaded(
-                            UpdateRepository.updateFile(appCtx)
-                        )
+                        _updateState.value = UpdateState.Downloaded(UpdateRepository.updateFile(appCtx))
                         installUpdate(appCtx)
                         return@launch
                     }
@@ -197,9 +163,7 @@ class SettingsViewModel : ViewModel() {
                         return@launch
                     }
                     else -> {
-                        _updateState.value = UpdateState.Downloading(
-                            UpdateRepository.queryProgress(appCtx, id)
-                        )
+                        _updateState.value = UpdateState.Downloading(UpdateRepository.queryProgress(appCtx, id))
                     }
                 }
             }
@@ -214,8 +178,7 @@ class SettingsViewModel : ViewModel() {
 
     fun installUpdate(context: Context) {
         try {
-            val intent = UpdateRepository.installIntent(context.applicationContext)
-                ?: throw IllegalStateException("APK file missing")
+            val intent = UpdateRepository.installIntent(context.applicationContext) ?: throw IllegalStateException("APK file missing")
             intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
             context.applicationContext.startActivity(intent)
         } catch (t: Throwable) {
@@ -224,7 +187,6 @@ class SettingsViewModel : ViewModel() {
         }
     }
 
-    /** Export all settings as JSON for backup. */
     fun exportSettings(context: Context): String {
         val prefs = context.getSharedPreferences(PrefsSchema.PREFS_FILE, Context.MODE_PRIVATE)
         val all = prefs.all
@@ -233,7 +195,6 @@ class SettingsViewModel : ViewModel() {
         return Gson().toJson(map)
     }
 
-    /** Import settings from JSON backup. */
     fun importSettings(context: Context, json: String) {
         val prefs = context.getSharedPreferences(PrefsSchema.PREFS_FILE, Context.MODE_PRIVATE)
         val type = object : TypeToken<Map<String, Any>>() {}.type

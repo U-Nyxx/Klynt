@@ -25,21 +25,39 @@ object ServiceLocator {
     private var prefs: SharedPreferences? = null
     private var context: Context? = null
 
+    private const val MAX_EVENTS = 2000
+    private const val BATCH_READ_LIMIT = 50
+
+    private val eventLock = Any()
+    private val _logEvents = MutableStateFlow<List<PrefsSchema.LogEvent>>(emptyList())
+    val logEvents: StateFlow<List<PrefsSchema.LogEvent>> = _logEvents.asStateFlow()
+
+    private var nextSequenceId: Long = 0
+        get() {
+            val p = prefs ?: return 0
+            return p.getLong(PrefsSchema.EVENT_SEQUENCE_ID, 0)
+        }
+        set(value) {
+            prefs?.edit()?.putLong(PrefsSchema.EVENT_SEQUENCE_ID, value)?.apply()
+            field = value
+        }
+
     fun init(ctx: Context) {
         context = ctx.applicationContext
         scopeManager = ScopeManager(context!!)
         prefs = context!!.getSharedPreferences(PrefsSchema.PREFS_FILE, Context.MODE_PRIVATE)
-        Logger.d { "ServiceLocator initialized" }
+        nextSequenceId = prefs?.getLong(PrefsSchema.EVENT_SEQUENCE_ID, 0) ?: 0
+        Logger.d { "ServiceLocator initialized (sequenceId=$nextSequenceId)" }
         KlyntApplication.addServiceStateListener(
             object : KlyntApplication.ServiceStateListener {
                 override fun onServiceStateChanged(service: io.github.libxposed.service.XposedService?) {
                     if (service != null) {
-                        logEvent("Framework binder connected")
+                        logEvent(PrefsSchema.LogEventType.BINDER_CONNECT, "", "Framework binder connected")
                         maintainActiveFlag(service)
                         flushPendingRemote(service)
                     } else {
                         setActiveFlag(false)
-                        logEvent("Framework binder lost")
+                        logEvent(PrefsSchema.LogEventType.BINDER_DISCONNECT, "", "Framework binder lost")
                     }
                 }
             },
@@ -52,21 +70,14 @@ object ServiceLocator {
             )
         } catch (_: Throwable) {
         }
-        logEvent("Manager started")
+        logEvent(PrefsSchema.LogEventType.STATUS_INFO, "", "Manager started")
     }
 
     fun scopeManager(): ScopeManager = scopeManager!!
     fun prefs(): SharedPreferences = prefs!!
 
-    /** True when the LSPosed framework binder is connected. */
     fun isServiceAlive(): Boolean = KlyntApplication.xposedService != null
 
-    /**
-     * Reliable "module active" signal: the framework is alive AND at
-     * least one KLYNT target is inside the enabled scope.
-     * Falls back to the maintained local marker (written on every
-     * binder connect/disconnect) when the service is unreachable.
-     */
     fun isModuleActive(): Boolean {
         val service = KlyntApplication.xposedService
         if (service != null) {
@@ -105,7 +116,6 @@ object ServiceLocator {
         return p.getBoolean(PrefsSchema.MODULE_ACTIVE, false)
     }
 
-    /** Packages currently enabled in LSPosed scope (empty when service is down). */
     fun getServiceScope(): Set<String> {
         return try {
             KlyntApplication.xposedService?.scope?.toSet() ?: emptySet()
@@ -114,11 +124,6 @@ object ServiceLocator {
         }
     }
 
-    /**
-     * Asks the framework to enable [packageName] in scope.
-     * Result arrives async via [onResult]; approved grants still need
-     * a target restart to take effect.
-     */
     fun requestScope(packageName: String, onResult: (approved: Boolean, message: String) -> Unit) {
         val service = KlyntApplication.xposedService
         if (service == null) {
@@ -130,12 +135,12 @@ object ServiceLocator {
                 listOf(packageName),
                 object : io.github.libxposed.service.XposedService.OnScopeEventListener {
                     override fun onScopeRequestApproved(approved: List<String>) {
-                        logEvent("Scope disetujui: $packageName")
+                        logEvent(PrefsSchema.LogEventType.SCOPE_CHANGE, "", "Scope disetujui: $packageName")
                         onResult(true, "Scope disetujui — restart target")
                     }
 
                     override fun onScopeRequestFailed(message: String) {
-                        logEvent("Scope ditolak: $packageName ($message)")
+                        logEvent(PrefsSchema.LogEventType.HOOK_FAIL, "", "Scope ditolak: $packageName ($message)")
                         onResult(false, message)
                     }
                 }
@@ -145,7 +150,6 @@ object ServiceLocator {
         }
     }
 
-    // Global Feature Toggles
     fun isGlobalEnabled(): Boolean {
         val p = prefs ?: return true
         return p.getBoolean(PrefsSchema.GLOBAL_LIQUID_GLASS_ENABLED, true)
@@ -154,11 +158,9 @@ object ServiceLocator {
     fun setGlobalEnabled(enabled: Boolean) {
         prefs?.edit()?.putBoolean(PrefsSchema.GLOBAL_LIQUID_GLASS_ENABLED, enabled)?.apply()
         writeRemoteBoolean(PrefsSchema.GLOBAL_LIQUID_GLASS_ENABLED, enabled)
-        Logger.d { "Global liquid glass enabled = $enabled" }
-        logEvent("Global Liquid Glass ${if (enabled) "enabled" else "disabled"}")
+        logEvent(PrefsSchema.LogEventType.STATUS_INFO, "", "Global Liquid Glass ${if (enabled) "enabled" else "disabled"}")
     }
 
-    /** Manager-local: re-apply hooks after reboot (no remote effect). */
     fun isAutoStartEnabled(): Boolean {
         val p = prefs ?: return true
         return p.getBoolean(PrefsSchema.AUTO_START_ENABLED, true)
@@ -166,10 +168,8 @@ object ServiceLocator {
 
     fun setAutoStartEnabled(enabled: Boolean) {
         prefs?.edit()?.putBoolean(PrefsSchema.AUTO_START_ENABLED, enabled)?.apply()
-        Logger.d { "Auto-start enabled = $enabled" }
     }
 
-    // Per-app Feature
     fun isFeatureEnabled(packageName: String, feature: PrefsSchema.Feature): Boolean {
         val key = PrefsSchema.appKey(packageName, feature)
         return prefs?.getBoolean(key, feature.defaultValue) ?: feature.defaultValue
@@ -179,11 +179,9 @@ object ServiceLocator {
         val key = PrefsSchema.appKey(packageName, feature)
         prefs?.edit()?.putBoolean(key, enabled)?.apply()
         writeRemoteBoolean(key, enabled)
-        Logger.d { "Set feature $key = $enabled for $packageName" }
-        logEvent("$packageName ${feature.name} ${if (enabled) "enabled" else "disabled"}")
+        logEvent(PrefsSchema.LogEventType.STATUS_INFO, "", "$packageName ${feature.name} ${if (enabled) "enabled" else "disabled"}")
     }
 
-    /** Per-app glass intensity 0..1, mirrored to hooks. */
     fun getGlassIntensity(packageName: String): Float {
         val key = PrefsSchema.intensityKey(packageName)
         return prefs?.getFloat(key, 1f) ?: 1f
@@ -194,10 +192,8 @@ object ServiceLocator {
         val key = PrefsSchema.intensityKey(packageName)
         prefs?.edit()?.putFloat(key, clamped)?.apply()
         writeRemoteFloat(key, clamped)
-        Logger.d { "Set intensity $key = $clamped" }
     }
 
-    /** Per-app corner radius in dp (999 = pill), mirrored to hooks. */
     fun getGlassCorner(packageName: String): Float {
         val key = PrefsSchema.cornerKey(packageName)
         return prefs?.getFloat(key, 999f) ?: 999f
@@ -208,20 +204,18 @@ object ServiceLocator {
         val key = PrefsSchema.cornerKey(packageName)
         prefs?.edit()?.putFloat(key, clamped)?.apply()
         writeRemoteFloat(key, clamped)
-        Logger.d { "Set corner $key = $clamped" }
     }
 
-    /** Queued remote write, replayed on the next binder connect. */
+    private val pendingLock = Any()
+    private val pendingRemote = ArrayDeque<PendingWrite>()
+
     private data class PendingWrite(
-        val kind: Int, // 0 = boolean, 1 = float, 2 = string
+        val kind: Int,
         val key: String,
         val b: Boolean = false,
         val f: Float = 0f,
         val s: String = ""
     )
-
-    private val pendingLock = Any()
-    private val pendingRemote = ArrayDeque<PendingWrite>()
 
     private fun enqueueRemote(write: PendingWrite) {
         synchronized(pendingLock) {
@@ -256,12 +250,10 @@ object ServiceLocator {
         }
     }
 
-    /** Manager version stamp so hook logs identify the driving build. */
     fun writeManagerVersion(version: String) {
         writeRemoteString(PrefsSchema.MANAGER_VERSION_KEY, version)
     }
 
-    /** Per-app ghost bar mode, mirrored to hooks. */
     fun getGhostMode(packageName: String): PrefsSchema.GhostMode {
         return try {
             PrefsSchema.GhostMode.valueOf(
@@ -275,7 +267,6 @@ object ServiceLocator {
     fun setGhostMode(packageName: String, mode: PrefsSchema.GhostMode) {
         prefs?.edit()?.putString(PrefsSchema.ghostModeKey(packageName), mode.name)?.apply()
         writeRemoteString(PrefsSchema.ghostModeKey(packageName), mode.name)
-        Logger.d { "Set ghost mode $packageName = $mode" }
     }
 
     private fun writeRemoteString(key: String, value: String) {
@@ -286,19 +277,12 @@ object ServiceLocator {
         }
         try {
             service.getRemotePreferences(PrefsSchema.PREFS_FILE)
-                ?.edit()
-                ?.putString(key, value)
-                ?.apply()
+                ?.edit()?.putString(key, value)?.apply()
         } catch (_: Throwable) {
             enqueueRemote(PendingWrite(2, key, s = value))
         }
     }
 
-    /**
-     * Mirrors a boolean into framework Remote Preferences so hooked apps
-     * observe it via `getRemotePreferences`. When the service is down the
-     * write is queued and replayed on reconnect — never silently lost.
-     */
     private fun writeRemoteBoolean(key: String, value: Boolean) {
         val service = KlyntApplication.xposedService
         if (service == null) {
@@ -307,9 +291,7 @@ object ServiceLocator {
         }
         try {
             service.getRemotePreferences(PrefsSchema.PREFS_FILE)
-                ?.edit()
-                ?.putBoolean(key, value)
-                ?.apply()
+                ?.edit()?.putBoolean(key, value)?.apply()
         } catch (_: Throwable) {
             enqueueRemote(PendingWrite(0, key, b = value))
         }
@@ -323,15 +305,12 @@ object ServiceLocator {
         }
         try {
             service.getRemotePreferences(PrefsSchema.PREFS_FILE)
-                ?.edit()
-                ?.putFloat(key, value)
-                ?.apply()
+                ?.edit()?.putFloat(key, value)?.apply()
         } catch (_: Throwable) {
             enqueueRemote(PendingWrite(1, key, f = value))
         }
     }
 
-    // App Icon Loading
     fun loadAppIcon(packageName: String): Drawable? {
         val ctx = context ?: return null
         val pm = ctx.packageManager
@@ -343,11 +322,6 @@ object ServiceLocator {
         }
     }
 
-    /**
-     * Single safe pattern for "is this package visible to us". Centralizes
-     * the try/catch so no call-site can reintroduce the launch-crash class
-     * where a throwing getPackageInfo escaped into the UI thread.
-     */
     fun isInstalled(pm: PackageManager, packageName: String): Boolean {
         return try {
             pm.getPackageInfo(packageName, 0)
@@ -359,7 +333,6 @@ object ServiceLocator {
         }
     }
 
-    /** Last captured manager crash (written by the global handler), if any. */
     fun readCrashLog(): String? {
         return try {
             val f = java.io.File(context?.filesDir, "crash.log")
@@ -370,25 +343,18 @@ object ServiceLocator {
     }
 
     fun clearCrashLog() {
-        try {
-            java.io.File(context?.filesDir, "crash.log").delete()
-        } catch (_: Throwable) {
-        }
+        try { java.io.File(context?.filesDir, "crash.log").delete() } catch (_: Throwable) { }
     }
 
-    // Theme / Appearance
     fun getThemeMode(): PrefsSchema.ThemeMode {
         val p = prefs ?: return PrefsSchema.ThemeMode.SYSTEM
         return try {
             PrefsSchema.ThemeMode.values().first { it.defaultValue == p.getInt(PrefsSchema.THEME_MODE, 0) }
-        } catch (_: Throwable) {
-            PrefsSchema.ThemeMode.SYSTEM
-        }
+        } catch (_: Throwable) { PrefsSchema.ThemeMode.SYSTEM }
     }
 
     fun setThemeMode(mode: PrefsSchema.ThemeMode) {
         prefs?.edit()?.putInt(PrefsSchema.THEME_MODE, mode.defaultValue)?.apply()
-        Logger.d { "Theme mode = $mode" }
     }
 
     fun isPureBlackOled(): Boolean {
@@ -398,21 +364,17 @@ object ServiceLocator {
 
     fun setPureBlackOled(enabled: Boolean) {
         prefs?.edit()?.putBoolean(PrefsSchema.PURE_BLACK_OLED, enabled)?.apply()
-        Logger.d { "Pure black OLED = $enabled" }
     }
 
     fun getAccentColor(): PrefsSchema.AccentColor {
         val p = prefs ?: return PrefsSchema.AccentColor.BLUE
         return try {
             PrefsSchema.AccentColor.values().first { it.defaultValue == p.getString(PrefsSchema.ACCENT_COLOR, "blue") }
-        } catch (_: Throwable) {
-            PrefsSchema.AccentColor.BLUE
-        }
+        } catch (_: Throwable) { PrefsSchema.AccentColor.BLUE }
     }
 
     fun setAccentColor(color: PrefsSchema.AccentColor) {
         prefs?.edit()?.putString(PrefsSchema.ACCENT_COLOR, color.defaultValue)?.apply()
-        Logger.d { "Accent color = $color" }
     }
 
     fun isFollowSystemAccent(): Boolean {
@@ -422,25 +384,19 @@ object ServiceLocator {
 
     fun setFollowSystemAccent(enabled: Boolean) {
         prefs?.edit()?.putBoolean(PrefsSchema.FOLLOW_SYSTEM_ACCENT, enabled)?.apply()
-        Logger.d { "Follow system accent = $enabled" }
     }
 
-    // Language
     fun getLanguage(): PrefsSchema.Language {
         val p = prefs ?: return PrefsSchema.Language.SYSTEM
         return try {
             PrefsSchema.Language.values().first { it.defaultValue == p.getInt(PrefsSchema.LANGUAGE, 0) }
-        } catch (_: Throwable) {
-            PrefsSchema.Language.SYSTEM
-        }
+        } catch (_: Throwable) { PrefsSchema.Language.SYSTEM }
     }
 
     fun setLanguage(lang: PrefsSchema.Language) {
         prefs?.edit()?.putInt(PrefsSchema.LANGUAGE, lang.defaultValue)?.apply()
-        Logger.d { "Language = $lang" }
     }
 
-    // Log settings
     fun isLogVerbose(): Boolean {
         val p = prefs ?: return false
         return p.getBoolean(PrefsSchema.LOG_VERBOSE, false)
@@ -448,7 +404,6 @@ object ServiceLocator {
 
     fun setLogVerbose(enabled: Boolean) {
         prefs?.edit()?.putBoolean(PrefsSchema.LOG_VERBOSE, enabled)?.apply()
-        Logger.d { "Log verbose = $enabled" }
     }
 
     fun isLogAutoscroll(): Boolean {
@@ -458,7 +413,6 @@ object ServiceLocator {
 
     fun setLogAutoscroll(enabled: Boolean) {
         prefs?.edit()?.putBoolean(PrefsSchema.LOG_AUTOSCROLL, enabled)?.apply()
-        Logger.d { "Log autoscroll = $enabled" }
     }
 
     fun isLogPaused(): Boolean {
@@ -468,7 +422,6 @@ object ServiceLocator {
 
     fun setLogPaused(enabled: Boolean) {
         prefs?.edit()?.putBoolean(PrefsSchema.LOG_PAUSED, enabled)?.apply()
-        Logger.d { "Log paused = $enabled" }
     }
 
     fun isLogWordWrap(): Boolean {
@@ -478,42 +431,74 @@ object ServiceLocator {
 
     fun setLogWordWrap(enabled: Boolean) {
         prefs?.edit()?.putBoolean(PrefsSchema.LOG_WORD_WRAP, enabled)?.apply()
-        Logger.d { "Log word wrap = $enabled" }
     }
 
-    // App Scope Check
     fun isAppInScope(packageName: String): Boolean {
         val pm = context?.packageManager ?: return false
         return try {
             pm.getPackageInfo(packageName, 0)
             isFeatureEnabled(packageName, PrefsSchema.Feature.LIQUID_GLASS_ENABLED)
-        } catch (_: PackageManager.NameNotFoundException) {
-            false
-        }
+        } catch (_: PackageManager.NameNotFoundException) { false }
     }
 
-    // Manager-side event log (ring buffer, newest first, max 100).
-    data class Event(
-        val timestamp: Long,
-        val message: String
+    // ===== REALTIME LOG TRANSPORT =====
+
+    /**
+     * Structured log event with sequence ID, type, package chain, and color.
+     * Adds to bounded ring buffer (max 2000 events), auto-prunes oldest.
+     */
+    fun logEvent(
+        type: PrefsSchema.LogEventType,
+        packageChain: String,
+        shortDescription: String,
+        detail: String? = null,
+        color: PrefsSchema.LogEventColor = PrefsSchema.LogEventColor.GRAY
     ) {
-        val formattedTime: String
-            get() = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault())
-                .format(java.util.Date(timestamp))
-    }
-
-    private val eventScope = CoroutineScope(Dispatchers.IO)
-    private val _events = MutableStateFlow<List<Event>>(emptyList())
-    val events: StateFlow<List<Event>> = _events.asStateFlow()
-
-    fun logEvent(message: String) {
-        eventScope.launch {
-            _events.value = (listOf(Event(System.currentTimeMillis(), message)) + _events.value).take(100)
+        val seq = nextSequenceId++
+        val event = PrefsSchema.LogEvent(
+            sequenceId = seq,
+            timestamp = System.currentTimeMillis(),
+            type = type,
+            packageChain = packageChain,
+            shortDescription = shortDescription,
+            detail = detail,
+            color = color
+        )
+        synchronized(eventLock) {
+            val current = _logEvents.value
+            val updated = listOf(event) + current
+            _logEvents.value = if (updated.size > MAX_EVENTS) updated.take(MAX_EVENTS) else updated
         }
     }
 
-    fun clearEvents() {
-        eventScope.launch { _events.value = emptyList() }
+    /** Backward-compatible simple log event. */
+    fun logEvent(message: String) {
+        logEvent(PrefsSchema.LogEventType.STATUS_INFO, "", message)
+    }
+
+    /**
+     * Batch read: returns up to [limit] events with sequenceId < [afterSequenceId].
+     * Used by the manager to read new events in small batches (no per-frame IPC).
+     */
+    fun getEventsBatch(afterSequenceId: Long, limit: Int = BATCH_READ_LIMIT): List<PrefsSchema.LogEvent> {
+        synchronized(eventLock) {
+            return _logEvents.value
+                .filter { it.sequenceId > afterSequenceId }
+                .sortedByDescending { it.sequenceId }
+                .take(limit)
+        }
+    }
+
+    /** Returns all events (for initial load). */
+    fun getAllLogEvents(): List<PrefsSchema.LogEvent> {
+        synchronized(eventLock) { return _logEvents.value }
+    }
+
+    /** Returns the highest sequence ID currently in the buffer. */
+    fun getLastSequenceId(): Long = nextSequenceId
+
+    fun clearLogEvents() {
+        synchronized(eventLock) { _logEvents.value = emptyList() }
     }
 
     // Stats
@@ -529,10 +514,6 @@ object ServiceLocator {
         val sm = scopeManager()
         val apps = sm.getInstallableTargetApps()
         val pm = context?.packageManager ?: return Stats(0, 0, 0, 0, 0)
-        // getInstallableTargetApps only returns installed packages, but
-        // re-check defensively: getPackageInfo THROWS (never returns null)
-        // for missing/invisible packages — an uncaught throw here used to
-        // kill the manager on launch.
         val installed = apps.keys.count { pkg -> isInstalled(pm, pkg) }
         val enabled = apps.entries.count { (_, info) ->
             isFeatureEnabled(info.packageName, PrefsSchema.Feature.LIQUID_GLASS_ENABLED)

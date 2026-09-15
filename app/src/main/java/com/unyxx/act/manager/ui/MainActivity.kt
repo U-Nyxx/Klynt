@@ -34,8 +34,11 @@ import com.unyxx.act.manager.viewmodel.AppsViewModel
 import com.unyxx.act.manager.viewmodel.HomeViewModel
 import com.unyxx.act.manager.viewmodel.LogsViewModel
 import com.unyxx.act.manager.viewmodel.SettingsViewModel
+import com.unyxx.act.manager.ui.LiquidGlassTabBar
+import com.unyxx.act.manager.ui.TabItem
 import com.unyxx.act.ui.theme.KlyntTheme
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 
 class MainActivity : ComponentActivity() {
 
@@ -47,24 +50,12 @@ class MainActivity : ComponentActivity() {
             }
         })[AppsViewModel::class.java]
     }
-
-    private val homeViewModel: HomeViewModel by lazy {
-        ViewModelProvider(this)[HomeViewModel::class.java]
-    }
-
-    private val settingsViewModel: SettingsViewModel by lazy {
-        ViewModelProvider(this)[SettingsViewModel::class.java]
-    }
-
-    private val logsViewModel: LogsViewModel by lazy {
-        ViewModelProvider(this)[LogsViewModel::class.java]
-    }
+    private val homeViewModel: HomeViewModel by lazy { ViewModelProvider(this)[HomeViewModel::class.java] }
+    private val settingsViewModel: SettingsViewModel by lazy { ViewModelProvider(this)[SettingsViewModel::class.java] }
+    private val logsViewModel: LogsViewModel by lazy { ViewModelProvider(this)[LogsViewModel::class.java] }
 
     override fun onResume() {
         super.onResume()
-        // User may return from LSPosed after ticking scope: re-read
-        // binder state, scope grants and stats instead of showing stale red.
-        // Update check rides along (ETag-conditional: cheap when unchanged).
         homeViewModel.refresh()
         appsViewModel.refresh()
         settingsViewModel.refresh()
@@ -73,12 +64,9 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // Edge-to-edge so list content shows through the glass bar.
         enableEdgeToEdge()
         setContent {
             KlyntTheme {
-                // Update check lives in onResume (ETag-conditional, cheap):
-                // it covers first composition too, so no second trigger here.
                 MainScreen(
                     appsViewModel = appsViewModel,
                     homeViewModel = homeViewModel,
@@ -90,11 +78,6 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-/**
- * Full-bleed pager with a floating glass bar overlaid at the bottom.
- * Swiping pages and tapping tabs drive the same pager state, so the
- * pill indicator tracks finger position fractionally.
- */
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @androidx.compose.runtime.Composable
 fun MainScreen(
@@ -106,42 +89,20 @@ fun MainScreen(
     val appsUiState by appsViewModel.uiState.collectAsState()
     val showLogs = ServiceLocator.isServiceAlive()
     val tabs = listOf(
-        TabItem(
-            stringResource(R.string.tab_home), "home",
-            Icons.Filled.Home, Icons.Outlined.Home
-        ),
-        TabItem(
-            stringResource(R.string.tab_apps), "apps",
-            Icons.Filled.Menu, Icons.Outlined.Menu,
-            appsUiState.apps.count { it.liquidGlassEnabled }
-        ),
-        TabItem(
-            stringResource(R.string.tab_settings), "settings",
-            Icons.Filled.Settings, Icons.Outlined.Settings
-        ),
+        TabItem(stringResource(R.string.tab_home), "home", Icons.Filled.Home, Icons.Outlined.Home),
+        TabItem(stringResource(R.string.tab_apps), "apps", Icons.Filled.Menu, Icons.Outlined.Menu, appsUiState.apps.count { it.liquidGlassEnabled }),
+        TabItem(stringResource(R.string.tab_settings), "settings", Icons.Filled.Settings, Icons.Outlined.Settings),
         @Suppress("DEPRECATION")
-        TabItem(
-            stringResource(R.string.tab_logs), "logs",
-            Icons.Filled.Article, Icons.Outlined.Article
-        )
+        TabItem(stringResource(R.string.tab_logs), "logs", Icons.Filled.Article, Icons.Outlined.Article)
     ).filter { it.route != "logs" || showLogs }
 
-    // Recreate pager state when the tab COUNT changes (Logs tab appears
-    // once the binder connects): a stale currentPage beyond the new size
-    // used to crash the pager instead of clamping.
     androidx.compose.runtime.key(tabs.size) {
-        val pagerState = androidx.compose.foundation.pager.rememberPagerState(
-            pageCount = { tabs.size }
-        )
+        val pagerState = rememberPagerState(pageCount = { tabs.size })
         val scope = rememberCoroutineScope()
-        val selectedPage = pagerState.currentPage +
-            pagerState.currentPageOffsetFraction
+        val selectedPage = pagerState.currentPage + pagerState.currentPageOffsetFraction
 
         Box(modifier = Modifier.fillMaxSize()) {
-            androidx.compose.foundation.pager.HorizontalPager(
-                state = pagerState,
-                modifier = Modifier.fillMaxSize()
-            ) { page ->
+            HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { page ->
                 when (tabs.getOrNull(page)?.route) {
                     "home" -> HomeScreen(homeViewModel)
                     "apps" -> AppsScreen(appsViewModel)
@@ -153,14 +114,12 @@ fun MainScreen(
                 tabs = tabs,
                 selectedPage = selectedPage,
                 onPageSelected = { page ->
-                    scope.launch {
-                        pagerState.animateScrollToPage(page)
-                    }
+                    scope.launch { pagerState.animateScrollToPage(page) }
                 },
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .navigationBarsPadding()
+                modifier = Modifier.align(Alignment.BottomCenter).navigationBarsPadding()
             )
         }
     }
 }
+
+

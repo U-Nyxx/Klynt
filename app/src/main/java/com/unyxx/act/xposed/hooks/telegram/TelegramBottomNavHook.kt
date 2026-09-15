@@ -7,6 +7,7 @@ import com.unyxx.act.liquidglass.ghost.GhostDriver
 import com.unyxx.act.liquidglass.injection.BottomNavDiscovery
 import com.unyxx.act.liquidglass.injection.BottomNavWrapper
 import com.unyxx.act.xposed.prefs.GlassSettings
+import com.unyxx.act.xposed.prefs.PrefsSchema
 import com.unyxx.act.xposed.prefs.RemotePrefs
 
 /**
