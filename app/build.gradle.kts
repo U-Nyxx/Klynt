@@ -103,7 +103,6 @@ dependencies {
     implementation(libs.material3)
     api(libs.material.icons.core)
     api(libs.material.icons.extended)
-    api(libs.material)
     implementation(libs.activity.compose)
     implementation(libs.foundation)
     implementation(libs.core.ktx)

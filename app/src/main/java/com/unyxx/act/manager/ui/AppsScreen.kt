@@ -9,8 +9,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Email
@@ -38,18 +41,22 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.viewinterop.AndroidView
+import com.unyxx.act.liquidglass.engine.KlyntGlassView
 import com.unyxx.act.R
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.unyxx.act.manager.di.ServiceLocator
 import com.unyxx.act.manager.viewmodel.AppsViewModel
+import com.unyxx.act.xposed.prefs.PrefsSchema
 import com.unyxx.act.xposed.scope.AppFamily
 import android.graphics.Bitmap
 import android.graphics.drawable.BitmapDrawable
@@ -313,7 +320,73 @@ fun AppRow(
     }
 }
 
-/** Expanded per-app tuning: bar mode, intensity, corner radius, blur. */
+/**
+ * Live miniature preview of the per-app glass tune.
+ *
+ * Renders the real [KlyntGlassView] — not a mock gradient — over high-frequency
+ * sample content (refraction is invisible over a flat color), driven by the same
+ * [intensity], [cornerDp], [blurEnabled] and [clearMode] values the hook consumes.
+ * What the user sees here is what the hooked app gets.
+ *
+ * SOC note: the preview inherits [KlyntGlassView]'s own tiering — full SHADER on
+ * Adreno flagships, dispersion-free LITE on Mali/Dimensity, calm SCRIM tint when
+ * the device is hot, low-RAM, or on reduced-transparency. No per-SOC branching
+ * needed at this layer.
+ *
+ * @param intensity 0..1 lens strength.
+ * @param cornerDp corner radius in dp; >= 999 renders as pill.
+ * @param blurEnabled true for full backdrop blur, false for minimum radius.
+ * @param clearMode Crystal Clear variant (max transparency, full refraction).
+ */
+@Composable
+fun GlassPreview(
+    intensity: Float,
+    cornerDp: Float,
+    blurEnabled: Boolean,
+    clearMode: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val shape = if (cornerDp >= 999f) CircleShape else RoundedCornerShape(cornerDp.coerceIn(0f, 64f).dp)
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(72.dp)
+            .clip(shape)
+            .background(MaterialTheme.colorScheme.primaryContainer)
+    ) {
+        // Sample content with hard color edges: gives the SDF lens something to bend.
+        Row(Modifier.fillMaxSize()) {
+            Box(Modifier.weight(1f).fillMaxSize().background(Color(0xFF6C63FF)))
+            Box(Modifier.weight(1f).fillMaxSize().background(Color(0xFF00D4AA)))
+            Box(Modifier.weight(1f).fillMaxSize().background(Color(0xFFFF9500)))
+            Box(Modifier.weight(1f).fillMaxSize().background(Color(0xFFFF4081)))
+        }
+        AndroidView(
+            factory = { ctx ->
+                KlyntGlassView(ctx).apply {
+                    this.intensity = intensity
+                    blurRadius = if (blurEnabled) 18f else 4f
+                    this.clearMode = clearMode
+                }
+            },
+            update = { v ->
+                v.intensity = intensity
+                v.blurRadius = if (blurEnabled) 18f else 4f
+                v.clearMode = clearMode
+            },
+            modifier = Modifier.fillMaxSize()
+        )
+        Text(
+            "Aa",
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+            color = Color.White,
+            modifier = Modifier.align(Alignment.Center)
+        )
+    }
+}
+
+/** Expanded per-app tuning: live preview, bar mode, intensity, corner radius, blur. */
 @Composable
 private fun TunePanel(
     app: com.unyxx.act.manager.viewmodel.AppUiState,
@@ -329,6 +402,12 @@ private fun TunePanel(
             .padding(start = 12.dp, end = 12.dp, bottom = 12.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
+        GlassPreview(
+            intensity = app.intensity,
+            cornerDp = app.cornerDp,
+            blurEnabled = app.blurEnabled,
+            clearMode = app.clearGlass
+        )
         ModeSelector(
             current = app.ghostMode,
             onSelect = { onMode(app.packageName, it) }
@@ -405,12 +484,18 @@ private fun ModeSelector(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            val modes = listOf(
-                com.unyxx.act.xposed.prefs.PrefsSchema.GhostMode.AUTO to stringResource(R.string.mode_auto),
-                com.unyxx.act.xposed.prefs.PrefsSchema.GhostMode.FORCE_GHOST to stringResource(R.string.mode_ghost),
-                com.unyxx.act.xposed.prefs.PrefsSchema.GhostMode.GLASS_ONLY to stringResource(R.string.mode_glass)
+            val modes: List<com.unyxx.act.xposed.prefs.PrefsSchema.GhostMode> = listOf(
+                com.unyxx.act.xposed.prefs.PrefsSchema.GhostMode.AUTO,
+                com.unyxx.act.xposed.prefs.PrefsSchema.GhostMode.FORCE_GHOST,
+                com.unyxx.act.xposed.prefs.PrefsSchema.GhostMode.GLASS_ONLY
             )
-            modes.forEach { (mode, label) ->
+            val modeLabels = listOf(
+                stringResource(R.string.mode_auto),
+                stringResource(R.string.mode_ghost),
+                stringResource(R.string.mode_glass)
+            )
+            modes.forEachIndexed { index, mode ->
+                val label = modeLabels[index]
                 val selected = mode == current
                 if (selected) {
                     androidx.compose.material3.FilledTonalButton(

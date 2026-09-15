@@ -22,12 +22,12 @@
     native <methods>;
 }
 
-# Compose
+# Compose: rely on the libraries' own consumer rules + compiler-generated rules.
+# A blanket androidx.compose keep pins every extended icon (~4000 classes) into
+# dex and blows the 20MB diet budget. Our symbols are kept explicitly above.
 -dontwarn androidx.compose.**
--keep class androidx.compose.** { *; }
 -keep class androidx.activity.compose.** { *; }
 -keep class androidx.lifecycle.compose.** { *; }
--keep class androidx.navigation.compose.** { *; }
 
 # Material3
 -keep class com.google.android.material.** { *; }
