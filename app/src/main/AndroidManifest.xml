@@ -38,6 +38,7 @@
         <package android:name="fork.risin42.nagramx" />
         <package android:name="com.iMe.android.web" />
         <package android:name="com.twitter.android" />
+        <package android:name="org.lsposed.manager" />
     </queries>
 
     <application

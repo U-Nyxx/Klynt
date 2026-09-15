@@ -81,7 +81,10 @@ object ServiceLocator {
 
     private fun scopeHasTarget(scope: Collection<String>): Boolean =
         scope.any { pkg ->
-            TelegramVariants.isTelegram(pkg) || TwitterVariants.isTwitter(pkg)
+            pkg != PrefsSchema.MODULE_PACKAGE && (
+                TelegramVariants.isTelegram(pkg) || TwitterVariants.isTwitter(pkg) ||
+                    pkg == "org.lsposed.manager"
+                )
         }
 
     private fun maintainActiveFlag(service: io.github.libxposed.service.XposedService) {
@@ -118,11 +121,17 @@ object ServiceLocator {
      * Asks the framework to enable [packageName] in scope.
      * Result arrives async via [onResult]; approved grants still need
      * a target restart to take effect.
+     *
+     * Since v1.0.13 the module ships `staticScope=true`: the framework
+     * enforces `scope.list` itself, so per-app requests are rejected by
+     * design. On any failure we deep-link into LSPosed Manager instead —
+     * the user lands exactly where scope lives, zero manual hunting.
      */
     fun requestScope(packageName: String, onResult: (approved: Boolean, message: String) -> Unit) {
         val service = KlyntApplication.xposedService
         if (service == null) {
-            onResult(false, "Framework tidak terhubung")
+            openLsposedManager()
+            onResult(false, "Scope otomatis — buka LSPosed Manager")
             return
         }
         try {
@@ -135,13 +144,28 @@ object ServiceLocator {
                     }
 
                     override fun onScopeRequestFailed(message: String) {
-                        logEvent("Scope ditolak: $packageName ($message)")
-                        onResult(false, message)
+                        logEvent("Scope statis aktif ($message) — buka Manager")
+                        openLsposedManager()
+                        onResult(false, "Scope otomatis aktif — restart target")
                     }
                 }
             )
         } catch (t: Throwable) {
-            onResult(false, t.message ?: "gagal")
+            logEvent("requestScope gagal (${t.message}) — buka Manager")
+            openLsposedManager()
+            onResult(false, "Scope otomatis aktif — restart target")
+        }
+    }
+
+    /** Deep-link to LSPosed Manager; silent no-op when not installed. */
+    private fun openLsposedManager() {
+        try {
+            val ctx = context ?: return
+            val launch = ctx.packageManager.getLaunchIntentForPackage("org.lsposed.manager")
+                ?: return
+            launch.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+            ctx.startActivity(launch)
+        } catch (_: Throwable) {
         }
     }
 
@@ -522,7 +546,8 @@ object ServiceLocator {
         val installedTargets: Int,
         val enabledTargets: Int,
         val telegramCount: Int,
-        val twitterCount: Int
+        val twitterCount: Int,
+        val managerCount: Int = 0
     )
 
     fun getStats(): Stats {
@@ -539,6 +564,7 @@ object ServiceLocator {
         }
         val telegram = apps.entries.count { it.value.family == AppFamily.TELEGRAM }
         val twitter = apps.entries.count { it.value.family == AppFamily.TWITTER }
-        return Stats(apps.size, installed, enabled, telegram, twitter)
+        val manager = apps.entries.count { it.value.family == AppFamily.MANAGER }
+        return Stats(apps.size, installed, enabled, telegram, twitter, manager)
     }
 }

@@ -46,8 +46,11 @@ class HomeViewModel : ViewModel() {
             // of ACTIVE (hooks live) — conflating them hid real state.
             val scopeGranted = try {
                 ServiceLocator.getServiceScope().any { pkg ->
-                    com.unyxx.act.xposed.hooks.telegram.TelegramVariants.isTelegram(pkg) ||
-                        com.unyxx.act.xposed.hooks.twitter.TwitterVariants.isTwitter(pkg)
+                    pkg != "com.unyxx.act" && (
+                        com.unyxx.act.xposed.hooks.telegram.TelegramVariants.isTelegram(pkg) ||
+                            com.unyxx.act.xposed.hooks.twitter.TwitterVariants.isTwitter(pkg) ||
+                            pkg == "org.lsposed.manager"
+                        )
                 }
             } catch (_: Throwable) {
                 false

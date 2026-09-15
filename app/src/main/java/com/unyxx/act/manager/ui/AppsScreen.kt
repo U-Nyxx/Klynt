@@ -18,6 +18,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.MailOutline
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -138,6 +139,21 @@ fun AppsScreen(viewModel: AppsViewModel) {
                     title = "Twitter/X",
                     icon = Icons.Default.MailOutline,
                     apps = uiState.apps.filter { app -> app.family == AppFamily.TWITTER },
+                    onToggle = { pkg, enabled -> viewModel.toggleLiquidGlass(pkg, enabled) },
+                    onRequestScope = { pkg -> viewModel.requestScope(pkg) },
+                    onIntensity = { pkg, v -> viewModel.setGlassIntensity(pkg, v) },
+                    onCorner = { pkg, v -> viewModel.setGlassCorner(pkg, v) },
+                    onBlur = { pkg, v -> viewModel.toggleBlur(pkg, v) },
+                    onClear = { pkg, v -> viewModel.toggleClear(pkg, v) },
+                    onMode = { pkg, m -> viewModel.setGhostMode(pkg, m) }
+                )
+            }
+
+            item {
+                AppFamilySection(
+                    title = "System & Managers",
+                    icon = Icons.Default.Settings,
+                    apps = uiState.apps.filter { app -> app.family == AppFamily.MANAGER },
                     onToggle = { pkg, enabled -> viewModel.toggleLiquidGlass(pkg, enabled) },
                     onRequestScope = { pkg -> viewModel.requestScope(pkg) },
                     onIntensity = { pkg, v -> viewModel.setGlassIntensity(pkg, v) },

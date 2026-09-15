@@ -42,6 +42,20 @@ class ScopeManager(private val context: Context) {
             } catch (_: PackageManager.NameNotFoundException) {}
         }
 
+        // LSPosed Manager itself: its bottom tab bar takes the glass pill
+        // via the generic hook. Listed only when installed.
+        try {
+            val pkg = "org.lsposed.manager"
+            val info = pm.getApplicationInfo(pkg, 0)
+            result[pkg] = TargetAppInfo(
+                packageName = pkg,
+                label = pm.getApplicationLabel(info).toString(),
+                icon = pm.getApplicationIcon(info),
+                family = AppFamily.MANAGER,
+                version = versionOf(pm, pkg)
+            )
+        } catch (_: PackageManager.NameNotFoundException) {}
+
         return result
     }
 
@@ -80,5 +94,5 @@ data class TargetAppInfo(
 )
 
 enum class AppFamily {
-    TELEGRAM, TWITTER
+    TELEGRAM, TWITTER, MANAGER
 }

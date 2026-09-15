@@ -2,6 +2,7 @@ package com.unyxx.act.xposed
 
 import android.app.Activity
 import android.util.Log
+import com.unyxx.act.xposed.hooks.generic.GenericBottomNavHook
 import com.unyxx.act.xposed.hooks.telegram.TelegramBottomNavHook
 import com.unyxx.act.xposed.hooks.telegram.TelegramVariants
 import com.unyxx.act.xposed.hooks.twitter.TwitterBottomNavHook
@@ -42,7 +43,10 @@ class KlyntModule : XposedModule() {
     override fun onPackageLoaded(param: PackageLoadedParam) {
         val pkg = param.packageName
         if (pkg == PrefsSchema.MODULE_PACKAGE) return
-        if (!TelegramVariants.isTelegram(pkg) && !TwitterVariants.isTwitter(pkg)) return
+        // Under staticScope=true the framework only loads us into packages on
+        // scope.list — every one of them is a target. Telegram/X keep their
+        // dedicated paths; anything else gets the generic bottom-bar pass.
+        // No per-app manual ticking, no allowlist to maintain.
         if (!resumeHookInstalled.compareAndSet(false, true)) return
 
         val prefs = runCatching { RemotePrefs.getInstance() }.getOrNull() ?: return
@@ -77,6 +81,8 @@ class KlyntModule : XposedModule() {
                     TelegramBottomNavHook.onResumed(activity, pkg, prefs, sink)
                 TwitterVariants.isTwitter(pkg) ->
                     TwitterBottomNavHook.onResumed(activity, pkg, prefs, sink)
+                else ->
+                    GenericBottomNavHook.onResumed(activity, pkg, prefs, sink)
             }
         } catch (t: Throwable) {
             log(Log.ERROR, TAG, "Resume handling failed for $pkg: ${t.message}")

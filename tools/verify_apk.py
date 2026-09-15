@@ -21,7 +21,7 @@ import os
 import sys
 import zipfile
 
-EXPECTED_SCOPE = 27
+EXPECTED_SCOPE = 28
 # Hard ceiling: releases ship ~14MB. Fail loudly before Play Protect /
 # low-storage installs start hurting rooted users.
 MAX_APK_MB = 20.0
@@ -83,7 +83,9 @@ def main(apk_path):
         errors += 1
     if prop is not None:
         text = prop.decode()
-        for want in ("minApiVersion=101", "targetApiVersion=101", "staticScope=false"):
+        # staticScope=true (v1.0.13+): framework enforces scope.list as the
+        # forced set — zero manual ticking, like NexAlloy/DisableFlagSecure.
+        for want in ("minApiVersion=101", "targetApiVersion=101", "staticScope=true"):
             if want not in text:
                 fail(f"module.prop missing '{want}'")
                 errors += 1

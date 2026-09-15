@@ -7,11 +7,11 @@ import org.junit.jupiter.api.Test
 class ScopeManagerInstrumentedTest {
 
     @Test
-    fun `scope list has 27 entries matching queries`() {
+    fun `scope list has 28 entries matching queries`() {
         val scopeFile = javaClass.classLoader?.getResource("META-INF/xposed/scope.list")
         scopeFile?.let { file ->
             val lines = file.readText().lines().filter { it.isNotBlank() }
-            assertEquals(27, lines.size, "scope.list must have exactly 27 entries")
+            assertEquals(28, lines.size, "scope.list must have exactly 28 entries")
         } ?: assertTrue(false, "scope.list resource not found")
     }
 
