@@ -1,6 +1,6 @@
 [versions]
 kotlin = "2.2.10"
-composeBom = "2024.08.00"
+composeBom = "2026.09.00"
 agp = "8.7.3"
 ndk = "27.0.12077973"
 cmake = "3.22.1"
