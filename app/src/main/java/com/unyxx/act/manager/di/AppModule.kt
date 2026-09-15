@@ -57,6 +57,7 @@ object ServiceLocator {
 
     fun scopeManager(): ScopeManager = scopeManager!!
     fun prefs(): SharedPreferences = prefs!!
+    fun appContext(): Context? = context
 
     /** True when the LSPosed framework binder is connected. */
     fun isServiceAlive(): Boolean = KlyntApplication.xposedService != null

@@ -1,6 +1,7 @@
 package com.unyxx.act.manager.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -86,9 +87,19 @@ fun HomeScreen(viewModel: HomeViewModel) {
                 HeroCard(appVersion = appVersion, isModuleActive = isModuleActive, loaded = loaded)
             }
             item {
+                val needsUsage by viewModel.needsUsagePermission.collectAsState()
                 SetupChecklistCard(
                     checks = checks,
-                    onAckRestart = { viewModel.ackRestart() }
+                    onRestartRowClick = {
+                        if (needsUsage) {
+                            try {
+                                context.startActivity(
+                                    com.unyxx.act.util.RestartDetector.usageAccessIntent()
+                                )
+                            } catch (_: Throwable) {
+                            }
+                        }
+                    }
                 )
             }
             item {
@@ -190,7 +201,7 @@ private fun HeroCard(appVersion: String, isModuleActive: Boolean, loaded: Boolea
 @Composable
 private fun SetupChecklistCard(
     checks: List<SetupCheck>,
-    onAckRestart: () -> Unit
+    onRestartRowClick: () -> Unit
 ) {
     if (checks.isEmpty()) return
     Card(
@@ -217,10 +228,23 @@ private fun SetupChecklistCard(
                     CheckKey.RESTART -> stringResource(R.string.check_restart) to
                         stringResource(R.string.check_restart_hint)
                 }
+                // Restart is auto-detected (UsageStats: foregrounded since
+                // boot == hooks live). The row is tappable only to grant
+                // the one-time usage-access permission — never a manual
+                // "did you restart" quiz.
+                val clickableRow = check.key == CheckKey.RESTART &&
+                    check.detail == null && !check.done
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 6.dp),
+                        .padding(vertical = 6.dp)
+                        .then(
+                            if (clickableRow) {
+                                Modifier.clickable { onRestartRowClick() }
+                            } else {
+                                Modifier
+                            }
+                        ),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
@@ -241,12 +265,24 @@ private fun SetupChecklistCard(
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                    }
-                    // Restart can't be detected — ask for confirmation
-                    // instead of lying green like before.
-                    if (check.key == CheckKey.RESTART && !check.done) {
-                        androidx.compose.material3.TextButton(onClick = onAckRestart) {
-                            Text(stringResource(R.string.action_mark_restarted))
+                        if (check.key == CheckKey.RESTART) {
+                            Text(
+                                if (check.done && !check.detail.isNullOrBlank()) {
+                                    stringResource(
+                                        R.string.restart_auto_seen,
+                                        check.detail
+                                    )
+                                } else if (!check.done && !check.detail.isNullOrBlank()) {
+                                    stringResource(
+                                        R.string.restart_auto_waiting,
+                                        check.detail
+                                    )
+                                } else {
+                                    stringResource(R.string.restart_auto_noperm)
+                                },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.primary
+                            )
                         }
                     }
                 }

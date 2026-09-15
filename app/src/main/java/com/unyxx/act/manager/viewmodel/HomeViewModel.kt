@@ -3,11 +3,15 @@ package com.unyxx.act.manager.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.unyxx.act.manager.di.ServiceLocator
+import com.unyxx.act.util.RestartDetector
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 /** UI state source for the Home dashboard (module status + target stats). */
 class HomeViewModel : ViewModel() {
@@ -25,16 +29,11 @@ class HomeViewModel : ViewModel() {
     private val _checks = MutableStateFlow<List<SetupCheck>>(emptyList())
     val checks: StateFlow<List<SetupCheck>> = _checks.asStateFlow()
 
-    /** True after the user confirms they restarted targets post-change. */
-    private val _restartAcked = MutableStateFlow(false)
+    /** True when usage access is missing (one-tap grant, then forever auto). */
+    private val _needsUsagePermission = MutableStateFlow(false)
+    val needsUsagePermission: StateFlow<Boolean> = _needsUsagePermission.asStateFlow()
 
     init {
-        refresh()
-    }
-
-    /** Marks targets as restarted; checklist reflects the confirmation. */
-    fun ackRestart() {
-        _restartAcked.value = true
         refresh()
     }
 
@@ -55,6 +54,8 @@ class HomeViewModel : ViewModel() {
             } catch (_: Throwable) {
                 false
             }
+            val (restartDone, restartDetail) = detectRestart()
+            _needsUsagePermission.value = restartDetail == RESTART_NEEDS_PERMISSION
             _stats.value = stats
             _isModuleActive.value = active
             _loaded.value = true
@@ -73,17 +74,71 @@ class HomeViewModel : ViewModel() {
                 ),
                 SetupCheck(
                     key = CheckKey.RESTART,
-                    done = _restartAcked.value
+                    done = restartDone,
+                    detail = restartDetail.takeIf { it != RESTART_NEEDS_PERMISSION }
                 )
             )
         }
+    }
+
+    /**
+     * Automatic restart state — no manual button, ever.
+     *
+     * A hook is live only if its process started after boot (framework
+     * injects at process start), so "restarted" == "foregrounded since
+     * boot" via UsageStats. Returns (done, detail); detail doubles as
+     * the permission-missing signal for the UI tap handler.
+     */
+    private fun detectRestart(): Pair<Boolean, String> {
+        val ctx = ServiceLocator.appContext()
+        val targets = try {
+            val apps = ServiceLocator.scopeManager().getInstallableTargetApps()
+            apps.entries
+                .filter { (_, info) ->
+                    ServiceLocator.isFeatureEnabled(
+                        info.packageName,
+                        com.unyxx.act.xposed.prefs.PrefsSchema.Feature.LIQUID_GLASS_ENABLED
+                    )
+                }
+                .map { it.key }
+                .toSet()
+        } catch (_: Throwable) {
+            emptySet()
+        }
+        if (targets.isEmpty()) return true to "–"
+        if (ctx == null || !RestartDetector.hasUsagePermission(ctx)) {
+            return false to RESTART_NEEDS_PERMISSION
+        }
+        val boot = RestartDetector.bootMs()
+        val seen = RestartDetector.lastForegroundMs(ctx, targets, boot)
+        val missing = targets.filter { (seen[it] ?: 0L) <= boot }
+        if (missing.isEmpty()) {
+            val times = targets.sorted().mapNotNull { seen[it] }.map { fmtTime(it) }
+            return true to times.distinct().joinToString(", ")
+        }
+        val short = missing.map { it.substringAfterLast('.') }
+        return false to short.joinToString(", ")
+    }
+
+    private fun fmtTime(ms: Long): String {
+        return try {
+            SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(ms))
+        } catch (_: Throwable) {
+            ""
+        }
+    }
+
+    companion object {
+        const val RESTART_NEEDS_PERMISSION = "NEEDS_USAGE_PERMISSION"
     }
 }
 
 /** Setup checklist step shown on Home. Text resolved in UI for i18n. */
 data class SetupCheck(
     val key: CheckKey,
-    val done: Boolean
+    val done: Boolean,
+    /** Live detail (e.g. hook-seen times); null hides the line. */
+    val detail: String? = null
 )
 
 enum class CheckKey {

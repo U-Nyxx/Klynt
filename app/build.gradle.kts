@@ -20,8 +20,8 @@ android {
         applicationId = "com.unyxx.act"
         minSdk = 33
         targetSdk = 35
-        versionCode = 15
-        versionName = "1.0.13"
+        versionCode = 16
+        versionName = "1.0.14"
         val codename = rootProject.file("release-codename.txt")
             .takeIf { it.exists() }?.readText()?.filter { it.isLetterOrDigit() || it == '-' || it == '_' }?.takeIf { it.isNotEmpty() } ?: "Dev"
         buildConfigField("String", "BUILD_CODENAME", "\"$codename\"")

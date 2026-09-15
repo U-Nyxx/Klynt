@@ -448,6 +448,25 @@ object GhostDriver {
     // ---- geometry tracking ----
 
     /**
+     * iOS floating-bar insets: the drawn pill floats inside the real
+     * slot (which stays INVISIBLE full-bleed to preserve insets) with
+     * breathing room on every side — the "mengambang" read. Tap mapping
+     * is slot-order based, so insetting is purely visual and cannot
+     * break forwarding. Tiny bars keep the flush rect (never invert).
+     */
+    private const val FLOAT_SIDE_DP = 12f
+    private const val FLOAT_TOP_DP = 6f
+    private const val FLOAT_BOTTOM_DP = 12f
+
+    private fun floatRect(l: Int, t: Int, r: Int, b: Int, density: Float): Rect {
+        val sx = (density * FLOAT_SIDE_DP).toInt()
+        val ty = (density * FLOAT_TOP_DP).toInt()
+        val by = (density * FLOAT_BOTTOM_DP).toInt()
+        if (r - l <= sx * 2 || b - t <= ty + by) return Rect(l, t, r, b)
+        return Rect(l + sx, t + ty, r - sx, b - by)
+    }
+
+    /**
      * Mirrors the real tab selection into our indicator. Telegram moves
      * tabs via swipe, deep-link and back-stack without touching our bar;
      * without this the highlight sticks wherever the user last tapped.
@@ -475,14 +494,13 @@ object GhostDriver {
                 val w = if (cover.width > 0) cover.width else cover.measuredWidth
                 val h = if (cover.height > 0) cover.height else cover.measuredHeight
                 if (w > 0 && h > 0) {
-                    state.bar.setBarRect(
+                    val f = floatRect(
                         loc[0] - decorLoc[0], loc[1] - decorLoc[1],
-                        loc[0] - decorLoc[0] + w, loc[1] - decorLoc[1] + h
+                        loc[0] - decorLoc[0] + w, loc[1] - decorLoc[1] + h,
+                        decor.resources.displayMetrics.density
                     )
-                    state.glass.setBarRect(
-                        loc[0] - decorLoc[0], loc[1] - decorLoc[1],
-                        loc[0] - decorLoc[0] + w, loc[1] - decorLoc[1] + h
-                    )
+                    state.bar.setBarRect(f.left, f.top, f.right, f.bottom)
+                    state.glass.setBarRect(f.left, f.top, f.right, f.bottom)
                     state.bar.labels = state.tabs.map { labelOf(it) }
                     return
                 }
@@ -503,13 +521,12 @@ object GhostDriver {
                 any = true
             }
             if (!any) return
-            val r = Rect(
+            // Float inside the tabs union (was: pad OUTWARD past it).
+            val r = floatRect(
                 l - decorLoc[0], t - decorLoc[1],
-                rgt - decorLoc[0], b - decorLoc[1]
+                rgt - decorLoc[0], b - decorLoc[1],
+                decor.resources.displayMetrics.density
             )
-            // Slightly pad so our pill breathes around the original slot.
-            val pad = (decor.resources.displayMetrics.density * 4).toInt()
-            r.inset(-pad, -pad)
             state.bar.setBarRect(r.left, r.top, r.right, r.bottom)
             state.glass.setBarRect(r.left, r.top, r.right, r.bottom)
             state.bar.labels = state.tabs.map { labelOf(it) }
